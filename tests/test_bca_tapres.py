@@ -22,6 +22,7 @@ from coffer.parsers.statement_types import (
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "bca_tapres_2026-05.txt"
+EMPTY_FIXTURE = Path(__file__).parent / "fixtures" / "bca_tapres_empty_2026-06.txt"
 
 
 @pytest.fixture()
@@ -97,3 +98,14 @@ def test_missing_period_raises() -> None:
     text = FIXTURE.read_text().replace("PERIODE : 01-05-2026 S/D 31-05-2026", "")
     with pytest.raises(StatementParseError):
         tapres.parse_text(text)
+
+
+def test_empty_statement_no_transactions() -> None:
+    # a dormant account: "* TIDAK ADA TRANSAKSI PADA BULAN INI *", MUTASI CR/DB 0.00 (0).
+    # This is valid, not an error — it must parse and reconcile trivially.
+    stmt = tapres.parse_text(EMPTY_FIXTURE.read_text())
+    assert stmt.transactions == []
+    assert stmt.opening_balance == Decimal("1.33")
+    assert stmt.closing_balance == Decimal("1.33")
+    assert stmt.period_start == date(2026, 6, 1)
+    assert stmt.period_end == date(2026, 6, 30)

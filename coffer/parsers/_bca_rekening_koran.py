@@ -192,9 +192,10 @@ def parse_rekening_koran(text: str, *, parser_version: str) -> ParsedStatement:
     saldo_akhir = _required(saldo_akhir, "SALDO AKHIR not found")
     mutasi_cr = _required(mutasi_cr, "MUTASI CR not found")
     mutasi_db = _required(mutasi_db, "MUTASI DB not found")
-    if not raws:
-        raise StatementParseError("no transactions parsed")
 
+    # A dormant account can have zero mutasi ("* TIDAK ADA TRANSAKSI PADA BULAN INI *").
+    # That is valid, not an error — the reconcile below still gates it (0 == MUTASI CR/DB 0);
+    # a genuine "rows expected but not parsed" failure surfaces there as a count mismatch.
     txns = [_build_txn(r, period.year) for r in raws]
 
     stmt = ParsedStatement(

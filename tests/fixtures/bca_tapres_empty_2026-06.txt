@@ -1,0 +1,24 @@
+REKENING TAPRES
+0458:0000/00/000/0000
+KCP BURSA EFEK JKT
+JSEB TOWER II G-09&108
+JL.JEND.SUDIRMAN KAV.52-53.JAKARTA
+MEMBER SATU NOMOR REKENING : 4959XXXXXX
+KELURAHAN
+HALAMAN : 1 / 1
+RT000 RW000 PROVINSI
+ALAMAT BARIS 1 PERIODE : 01-06-2026 S/D 30-06-2026
+KOTA 00000
+MATA UANG : IDR
+INDONESIA
+CATATAN
+• Rekening Koran ini sah tanpa tanda tangan. • Bilamana dalam 14 hari setelah menerima Rekening Koran ini kami tidak menerima
+• Bank setiap saat berhak mengadakan koreksi apabila ada kesalahan pada Rekening sanggahan apapun, maka kami menganggap bahwa Rekening Koran ini telah Saudara
+Koran. setujui.
+TANGGAL KETERANGAN CBG MUTASI SALDO
+01/06 SALDO AWAL 1.33
+* TIDAK ADA TRANSAKSI PADA BULAN INI *
+SALDO AWAL : 1.33
+MUTASI CR : 0.00 0
+MUTASI DB : 0.00 0
+SALDO AKHIR : 1.33
