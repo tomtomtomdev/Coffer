@@ -78,3 +78,51 @@ class ParsedStatement:
             str(self.opening_balance),
             str(self.closing_balance),
         )
+
+
+@dataclass(frozen=True)
+class ParsedHolding:
+    """One equity position in a broker portfolio snapshot (SPEC §2 `holding`, §3.2)."""
+
+    ticker: str  # "AMRT"
+    name: str  # "SUMBER ALFARIA TRIJAYA Tbk"
+    lot_balance: Decimal  # lots (1 lot = 100 shares on IDX)
+    share_balance: Decimal  # shares
+    avg_price: Decimal  # weighted average cost per share
+    market_price: Decimal  # last / closing price per share
+    market_value: Decimal  # share_balance × market_price
+    unrealized: Decimal  # market_value − cost (signed)
+    special_notation: str | None = None  # IDX "notasi khusus" flag, if any
+
+
+@dataclass(frozen=True)
+class ParsedPortfolio:
+    """A broker portfolio **snapshot** (Ajaib, Stockbit).
+
+    Unlike `ParsedStatement`, a portfolio is a point-in-time snapshot: it has an
+    `as_of` date rather than a period, no opening/closing balance, and NO balance
+    continuity gate. Lot continuity across snapshots is *soft* (corporate actions
+    are legitimate discontinuities, SPEC §3.2); the parser's own structural check
+    is Σ holding market_value == the statement's printed Total.
+    """
+
+    institution: str  # "ajaib", "stockbit"
+    account_type: str  # "ajaib_portfolio", "stockbit_portfolio"
+    parser_version: str
+    account_number_masked: str
+    currency: str
+    as_of: datetime.date
+    holdings: list[ParsedHolding]
+    cash_balance: Decimal | None = None  # broker cash (RDN / cash investor)
+    transactions: list[ParsedTransaction] = field(default_factory=list)  # e.g. dividend SOA
+
+    def total_market_value(self) -> Decimal:
+        return sum((h.market_value for h in self.holdings), Decimal("0"))
+
+    def content_hash_fields(self) -> tuple[str, str, str]:
+        """SPEC §4 dedup layer 2 for a snapshot: (account, as_of, total market value)."""
+        return (
+            self.account_number_masked,
+            self.as_of.isoformat(),
+            str(self.total_market_value()),
+        )
