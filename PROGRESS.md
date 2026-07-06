@@ -29,16 +29,21 @@ _Last updated: 2026-07-06_
   - Fixture: `tests/fixtures/cimb_mc_gold_2026-03.txt` (anonymized; amounts/dates real).
 
 ## In progress 🚧
-- **S1 remaining parsers.** Samples received (in `~/Downloads`, gitignored). None encrypted.
-  - ✅ `bca_kartu_kredit` — commit `f202fb4` (see Done).
-  - 🚧 `ajaib_portfolio` + `stockbit_soa` — anonymized fixtures **captured** (commit `5dec9e5`);
-    parsers **blocked on a contract-shape decision** (see Blockers). Both are holdings
-    snapshots with printed Total rows (Σ market value == Total — a real structural check);
-    NO opening/closing balance and NO balance-continuity reconcile (soft lot continuity, §3.2).
-    Stockbit also carries a cash SOA (dividends) alongside its PORTFOLIO STATEMENT.
-  - ⛔ `bca_tapres` — **still no sample** (not in this batch). Same contract as `bca_tahapan`.
+- **S1 essentially complete** — 5 of 6 remaining parsers built this session (see Done).
+  Only ⛔ `bca_tapres` is left, **blocked on a sample** (not in the batch; same contract as
+  `bca_tahapan` once provided).
+- **Deferred (not blocking):** Stockbit cash-SOA dividend rows → `transactions` (feeds §3.5
+  income). Portfolio parsers currently extract holdings + cash only.
+- **Contract decision taken (portfolio shape):** chose a **separate `ParsedPortfolio`** type
+  (not extending `ParsedStatement`) — snapshot with `as_of`, `holdings`, `cash_balance`,
+  optional `transactions`; no balance reconcile. Downstream (ingestion/persistence/api) will
+  branch on statement-vs-portfolio family. Revisit if a single-type model is preferred.
 
 ## Done (this session, added to S1) ✅
+- **`ajaib_portfolio` + `stockbit_soa`** — commit `b9d1bb0`. New `ParsedHolding`/`ParsedPortfolio`
+  contract. Structural gate = Σ market_value == printed Total (NOT lot continuity, which is
+  soft §3.2). Ajaib's real fixture exposed a broker off-by-1 in the printed cost/unrealized
+  totals → gate on market value only. Name-wrap handling. 16 tests.
 - **`bca_kartu_kredit` (BCA credit card)** — commit `f202fb4`. Multi-card statement (VISA +
   BCA Everyday under one NOMOR CUSTOMER); merges line items; reconciles Σ SALDO SEBELUMNYA +
   Σcharges − Σcredits == TAGIHAN BARU. Dot-thousand money; DD-MMM dates w/ year inference.
@@ -52,10 +57,11 @@ _Last updated: 2026-07-06_
     `TAGIHAN BARU` — the §3.3 intra-account payment link; `counterparty_acct` = the CC number.
 
 ## Next up (suggested order)
-1. **S1 remaining parsers** — `bca_kartu_kredit` → `ajaib_portfolio` → `stockbit_soa` (samples in
-   hand); `bca_tapres` still blocked on a sample.
+1. **S4 — persistence layer** (no external blocker; depends only on S0) — good next slice while
+   samples/scheme are gathered. Postgres schema for SPEC §2 incl. `holding`; repo interfaces in
+   `domain`, impls in `persistence`; ParsedStatement + ParsedPortfolio both persist.
 2. **S2 — decryption stage** — build the `static` path; blocked on CIMB scheme for end-to-end.
-3. **S4 — persistence layer** (no external blocker; depends only on S0).
+3. **S1 tail** — `bca_tapres` (needs sample); Stockbit cash-SOA dividend rows (deferred).
 
 ## Live decisions
 - Money is `Decimal` end-to-end; `id-ID` formatting only at the UI edge.
@@ -64,12 +70,10 @@ _Last updated: 2026-07-06_
 - Retention: encrypted original only; plaintext never on disk; reparse re-decrypts.
 
 ## Blockers (need Tommy)
-- ⛔ **Portfolio contract shape** — `ParsedStatement` forces `opening_balance`/`closing_balance`
-  + a balance reconcile, which portfolio snapshots (Ajaib/Stockbit) don't have. Decide: a
-  separate `ParsedPortfolio` type (recommended) vs. extending `ParsedStatement` with an
-  optional `holdings` list. Unblocks `ajaib_portfolio` + `stockbit_soa`.
 - ⛔ **`bca_tapres` sample** — needed to build that parser (same contract as `bca_tahapan`).
 - ⛔ **CIMB password scheme** (static/derived/per_statement) — unblocks S2 end-to-end.
+- ℹ️ **Portfolio contract shape** — RESOLVED by best-judgment while away: separate
+  `ParsedPortfolio` type (see In progress). Flag if you'd prefer a single-type model.
 - ⛔ **§3.4 bill-aggregator placement** — card on Ringkasan (recommended) vs. 5th tab — confirm before S11.
 - ⛔ **Samples**: BCA CC, BCA savings, Ajaib, Stockbit — unblock remaining S1 parsers.
 - ⚠️ **CIMB edge cases**: no cash-advance / multi-card / multi-page statement seen yet.
