@@ -39,7 +39,15 @@ _Last updated: 2026-07-06_
   optional `transactions`; no balance reconcile. Downstream (ingestion/persistence/api) will
   branch on statement-vs-portfolio family. Revisit if a single-type model is preferred.
 
-## Done (this session, added to S1) ✅
+## Done (this session) ✅
+- **S2 — decryption stage (static path)** — commit `8bb3269`. Ingestion-layer in-memory
+  decrypt (`coffer/ingestion/decrypt.py`): `is_encrypted`, `decrypt_to_stream`,
+  `to_plaintext_stream`; `PasswordScheme` enum; wrong password raises without leaking it.
+  Password is a **runtime argument** — this layer never sources/stores it (so `static`
+  doesn't force env/at-rest storage; entry mechanism decided at S4/S9). 6 tests.
+  - **CIMB confirmed encrypted** (real `…559760447.pdf`); scheme = **static** (Tommy).
+  - ⏳ End-to-end check on the real PDF pending: run the scratchpad `verify_cimb_real.py`
+    (now uses a `getpass` no-echo prompt — no env var/file).
 - **`ajaib_portfolio` + `stockbit_soa`** — commit `b9d1bb0`. New `ParsedHolding`/`ParsedPortfolio`
   contract. Structural gate = Σ market_value == printed Total (NOT lot continuity, which is
   soft §3.2). Ajaib's real fixture exposed a broker off-by-1 in the printed cost/unrealized
@@ -71,9 +79,13 @@ _Last updated: 2026-07-06_
 
 ## Blockers (need Tommy)
 - ⛔ **`bca_tapres` sample** — needed to build that parser (same contract as `bca_tahapan`).
-- ⛔ **CIMB password scheme** (static/derived/per_statement) — unblocks S2 end-to-end.
+- ℹ️ **CIMB password scheme** — RESOLVED: **static** (same every month).
+- ℹ️ **Password entry mechanism** — Tommy prefers runtime entry over storing it (env-file
+  leak risk). S2 decrypt is already password-source-agnostic; finalize at S9: getpass prompt
+  / in-memory-for-session / OS keychain vs. encrypted-at-rest. Note: unattended Telegram
+  ingest (S10) needs the password available without a human prompt — reconcile then.
 - ℹ️ **Portfolio contract shape** — RESOLVED by best-judgment while away: separate
-  `ParsedPortfolio` type (see In progress). Flag if you'd prefer a single-type model.
+  `ParsedPortfolio` type. Flag if you'd prefer a single-type model.
 - ⛔ **§3.4 bill-aggregator placement** — card on Ringkasan (recommended) vs. 5th tab — confirm before S11.
 - ⛔ **Samples**: BCA CC, BCA savings, Ajaib, Stockbit — unblock remaining S1 parsers.
 - ⚠️ **CIMB edge cases**: no cash-advance / multi-card / multi-page statement seen yet.
