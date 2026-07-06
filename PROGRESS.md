@@ -29,10 +29,19 @@ _Last updated: 2026-07-06_
   - Fixture: `tests/fixtures/cimb_mc_gold_2026-03.txt` (anonymized; amounts/dates real).
 
 ## In progress 🚧
-- None active. Pick the next slice from `PLAN.md`.
+- **S1 · `bca_tahapan` (BCA savings)** — chosen as the next parser (unblocks counterparty
+  extraction → learned rules S6 → spend S8). **⛔ blocked awaiting the real sample** (per
+  CLAUDE.md: no sample → no parser). Ready to build the moment Tommy drops a PDF+password or
+  anonymized text.
+  - **Contract heads-up:** `ParsedStatement` is currently CC-shaped — `statement_balance`,
+    `minimum_payment`, `overdue_minimum`, `due_date` are mandatory. Savings has none of these
+    (has `saldo_awal`/`saldo_akhir` + `counterparty_name`/`counterparty_acct`). First red test
+    for `bca_tahapan` must drive making those CC fields optional (or splitting the contract).
+    `bca_tapres` shares the same contract once `bca_tahapan` lands.
 
 ## Next up (suggested order)
-1. **S1 remaining parsers** — needs real samples: BCA CC, BCA savings, Ajaib, Stockbit.
+1. **S1 remaining parsers** — needs real samples: **BCA savings (chosen, blocked)**, BCA CC,
+   Ajaib, Stockbit.
 2. **S2 — decryption stage** — build the `static` path; blocked on CIMB scheme for end-to-end.
 3. **S4 — persistence layer** (no external blocker; depends only on S0).
 
