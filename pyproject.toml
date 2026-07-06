@@ -1,0 +1,64 @@
+[project]
+name = "coffer"
+version = "0.0.0"
+description = "Private, self-hosted household finance consolidator (Indonesian statements)."
+requires-python = ">=3.12"
+dependencies = [
+    "pdfplumber>=0.11",
+    "pikepdf>=9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["coffer"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "import-linter>=2.0",
+]
+
+# ── Lint / format ─────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+
+# ── Types (strict, per CLAUDE.md Definition of done) ────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["coffer", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["pdfplumber.*", "pikepdf.*"]
+ignore_missing_imports = true
+
+# ── Tests ───────────────────────────────────────────────────────────────────--
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# ── Layer contract: dependencies point inward (CLAUDE.md Architecture) ──────────
+# Higher layers may import lower ones; a lower layer importing a higher one fails.
+# Outer → inner:  web → api → ingestion → persistence → parsers → domain.
+[tool.importlinter]
+root_package = "coffer"
+
+[[tool.importlinter.contracts]]
+name = "Clean Architecture: dependencies point inward"
+type = "layers"
+layers = [
+    "coffer.web",
+    "coffer.api",
+    "coffer.ingestion",
+    "coffer.persistence",
+    "coffer.parsers",
+    "coffer.domain",
+]

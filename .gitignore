@@ -1,0 +1,35 @@
+# ─── Secrets & real financial data — NEVER commit (CLAUDE.md security invariants) ───
+.env
+.env.*
+*.pdf
+*.PDF
+secrets/
+credentials/
+*.key
+*.pem
+
+# Real (non-anonymized) statement material. Anonymized text fixtures under
+# tests/fixtures/ are committed deliberately and force-added.
+statements/
+raw/
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# ─── Tooling caches ───
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ─── OS / editor ───
+.DS_Store
+.idea/
+.vscode/
