@@ -29,19 +29,31 @@ _Last updated: 2026-07-06_
   - Fixture: `tests/fixtures/cimb_mc_gold_2026-03.txt` (anonymized; amounts/dates real).
 
 ## In progress 🚧
-- **S1 · `bca_tahapan` (BCA savings)** — chosen as the next parser (unblocks counterparty
-  extraction → learned rules S6 → spend S8). **⛔ blocked awaiting the real sample** (per
-  CLAUDE.md: no sample → no parser). Ready to build the moment Tommy drops a PDF+password or
-  anonymized text.
-  - **Contract heads-up:** `ParsedStatement` is currently CC-shaped — `statement_balance`,
-    `minimum_payment`, `overdue_minimum`, `due_date` are mandatory. Savings has none of these
-    (has `saldo_awal`/`saldo_akhir` + `counterparty_name`/`counterparty_acct`). First red test
-    for `bca_tahapan` must drive making those CC fields optional (or splitting the contract).
-    `bca_tapres` shares the same contract once `bca_tahapan` lands.
+- **S1 remaining parsers.** Samples received (in `~/Downloads`, gitignored). None encrypted.
+  - ✅ `bca_kartu_kredit` — commit `f202fb4` (see Done).
+  - 🚧 `ajaib_portfolio` + `stockbit_soa` — anonymized fixtures **captured** (commit `5dec9e5`);
+    parsers **blocked on a contract-shape decision** (see Blockers). Both are holdings
+    snapshots with printed Total rows (Σ market value == Total — a real structural check);
+    NO opening/closing balance and NO balance-continuity reconcile (soft lot continuity, §3.2).
+    Stockbit also carries a cash SOA (dividends) alongside its PORTFOLIO STATEMENT.
+  - ⛔ `bca_tapres` — **still no sample** (not in this batch). Same contract as `bca_tahapan`.
+
+## Done (this session, added to S1) ✅
+- **`bca_kartu_kredit` (BCA credit card)** — commit `f202fb4`. Multi-card statement (VISA +
+  BCA Everyday under one NOMOR CUSTOMER); merges line items; reconciles Σ SALDO SEBELUMNYA +
+  Σcharges − Σcredits == TAGIHAN BARU. Dot-thousand money; DD-MMM dates w/ year inference.
+  NOMOR CUSTOMER links the savings-side KARTU KREDIT/PL payment (§3.3). 10 tests green.
+- **`bca_tahapan` (BCA savings)** — commit `973a1f9`. Multi-line mutasi across 6 pages;
+  statement-level reconcile (SALDO AWAL + ΣCR − ΣDB == SALDO AKHIR) + MUTASI CR/DB total+count
+  gates; structured counterparty extraction by transfer sub-type. 14 tests green.
+  - **Contract generalized:** `statement_balance`/`minimum_payment`/`overdue_minimum`/`due_date`
+    are now `| None` (savings leaves them None); `opening/closing_balance` shared. CIMB unaffected.
+  - **Cross-statement link found:** the `KARTU KREDIT/PL` debit (2,177,067.00) equals the BCA CC
+    `TAGIHAN BARU` — the §3.3 intra-account payment link; `counterparty_acct` = the CC number.
 
 ## Next up (suggested order)
-1. **S1 remaining parsers** — needs real samples: **BCA savings (chosen, blocked)**, BCA CC,
-   Ajaib, Stockbit.
+1. **S1 remaining parsers** — `bca_kartu_kredit` → `ajaib_portfolio` → `stockbit_soa` (samples in
+   hand); `bca_tapres` still blocked on a sample.
 2. **S2 — decryption stage** — build the `static` path; blocked on CIMB scheme for end-to-end.
 3. **S4 — persistence layer** (no external blocker; depends only on S0).
 
@@ -52,6 +64,11 @@ _Last updated: 2026-07-06_
 - Retention: encrypted original only; plaintext never on disk; reparse re-decrypts.
 
 ## Blockers (need Tommy)
+- ⛔ **Portfolio contract shape** — `ParsedStatement` forces `opening_balance`/`closing_balance`
+  + a balance reconcile, which portfolio snapshots (Ajaib/Stockbit) don't have. Decide: a
+  separate `ParsedPortfolio` type (recommended) vs. extending `ParsedStatement` with an
+  optional `holdings` list. Unblocks `ajaib_portfolio` + `stockbit_soa`.
+- ⛔ **`bca_tapres` sample** — needed to build that parser (same contract as `bca_tahapan`).
 - ⛔ **CIMB password scheme** (static/derived/per_statement) — unblocks S2 end-to-end.
 - ⛔ **§3.4 bill-aggregator placement** — card on Ringkasan (recommended) vs. 5th tab — confirm before S11.
 - ⛔ **Samples**: BCA CC, BCA savings, Ajaib, Stockbit — unblock remaining S1 parsers.
