@@ -1,0 +1,57 @@
+PT. STOCKBIT SEKURITAS DIGITAL
+RDTX Square Lt. 33, Jl. Prof. Dr. Satrio No. 164, Setiabudi, Jakarta Selatan 12930
+Telp : (021) 50959 - 330
+Statement of Account
+Bank / Currency SID
+BCA 0000000000 / IDR IDDXXXXXXXXXX
+Date 01/06/2026 - 30/06/2026 Cash Investor 100,040.99
+Client 0000000 MEMBER SATU Cash 100,041
+Address ALAMAT BARIS 1 Undue Trading 0
+ALAMAT BARIS 2 Short Sell 0
+Email member@email.com Portfolio 848,601
+Phone 6280000000000 Portfolio Caping 273,863
+Sales / Sub Branch Inhouse 1 / Menara Batavia Equity NAB 848,601
+Avail Limit 100,041
+Tr. Date Due Date Reference Description Db Amount Cr Amount Ending Balance Days Interest
+01/06/2026 01/06/2026 Beginning Balance 0 0 0 0
+15/06/2026 15/06/2026 D843667 Dividend BISI 200 @ 26.0000 - Tax 0% 0 5,200 (5,200) 14 0
+15/06/2026 15/06/2026 P 333593 Dividend BISI 200 @ 26.0000 - Tax 0% 5,200 0 0 0
+18/06/2026 18/06/2026 D560297 D ividend BFIN 300 @ 35.0000 - Tax 0% 0 10,500 (10,500) 3 0
+18/06/2026 18/06/2026 P 779344 Dividend BFIN 300 @ 35.0000 - Tax 0% 10,500 0 0 0
+30/06/2026 30/06/2026 Z Z Estimated Interest 0 0 0 0
+T O T A L 15,700 15,700 0 0
+Total - Interest 0 0
+PORTFOLIO STATEMENT
+PRICE UNREAL. GAIN/LOSS
+Stocks Special Notes Margin Quantity Buying Close Buying Value Market Value (Rp.) %
+BFIN BFI Finance 300 1,103.75 735 331,125 220,500 -110,625 -33.41
+Indonesia Tbk.
+BISI BISI International Tbk. 200 1,792.50 650 358,500 130,000 -228,500 -63.74
+BTPS Bank BTPN Syariah 200 1,472.50 980 294,500 196,000 -98,500 -33.45
+Tbk.
+DLTA Delta Djakarta Tbk. 100 2,280.00 1,905 228,000 190,500 -37,500 -16.45
+IDR INDONESIA RUPIAH 1 0.00 1 0 1 1 0.00
+SIDO Industri Jamu dan 300 766.67 372 230,000 111,600 -118,400 -51.48
+Farmasi Sido Muncul
+Tb
+T O T A L 1,442,125 848,601 -593,524
+This statement is taken to be correct if no errors are reported within 2 x 24 (twenty four) hours.
+Description for references:
+I = Invoice
+M = Memorial
+P = Payment
+R = Received
+Description Notasi Khusus:
+A = Adanya Opini Tidak Wajar (Adverse) dari Akuntan Publik
+B = Adanya permohonan Pernyataan Pailit
+D = Adanya Opini "Tidak Menyatakan Pendapat (Disclaimer)" dari Akuntan Publik
+E = Laporan keuangan terakhir menunjukkan ekuitas negatif
+I = Perusahaan Tercatat yang tidak menerapkan Saham Dengan Hak Suara Multipel dan tercatat di Papan Ekonomi Baru
+L = Perusahaan Tercatat belum menyampaikan laporan keuangan
+M = Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)
+N = Perusahaan Tercatat merupakan Emiten yang menerapkan Saham Dengan Hak Suara Multipel
+Q = Pembatasan kegiatan usaha Perusahaan Tercatat dan/atau Anak Perusahaan Tercatat oleh regulator
+S = Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha
+X = Efek Bersifat Ekuitas Dalam Pemantauan
+Y = Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun
+buku berakhir
