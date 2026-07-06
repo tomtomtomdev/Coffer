@@ -33,10 +33,13 @@ _Last updated: 2026-07-06_
   bca_kartu_kredit, ajaib_portfolio, stockbit_soa). Ready to move to S3/S4.
 - **Deferred (not blocking):** Stockbit cash-SOA dividend rows → `transactions` (feeds §3.5
   income). Portfolio parsers currently extract holdings + cash only.
-- **⚠ Net-worth double-count to handle at S7:** the BCA **Tapres** account (`4958…`) IS the
-  **Ajaib RDN** — its balance is the same money as Ajaib's reported "Saldo RDN". Recompute must
-  net/dedupe this (recognise the RDN↔broker cash identity), not sum both. Same pattern may
-  apply to Stockbit's RDN if that statement is added.
+- **⚠ Net-worth double-count to handle at S7:** BCA **Tapres/RDN** accounts hold the same money
+  the broker statements already report as cash. Known RDN accounts (all Tommy's): `4958…` =
+  **Ajaib RDN** (= Ajaib "Saldo RDN"), `4996…` = **Stockbit RDN** (= Stockbit "Cash Investor"),
+  `4959…` = a dormant RDN (bal 1.33). Recompute must net/dedupe the RDN↔broker-cash identity, not
+  sum both. Also relevant to S4 account seeding (multiple RDN accounts per member).
+- **Edge case handled:** empty statement (`* TIDAK ADA TRANSAKSI PADA BULAN INI *`, zero mutasi)
+  parses + reconciles (commit `c63c11a`) — found via the dormant `4959…` sample.
 - **Contract decision taken (portfolio shape):** chose a **separate `ParsedPortfolio`** type
   (not extending `ParsedStatement`) — snapshot with `as_of`, `holdings`, `cash_balance`,
   optional `transactions`; no balance reconcile. Downstream (ingestion/persistence/api) will
