@@ -14,7 +14,7 @@ budgets/goals, notifications, multi-currency.
 
 ## Phase A — Backend foundations
 
-### S0 · Scaffold + layer enforcement ⬜
+### S0 · Scaffold + layer enforcement ✅
 - Repo layout for the Clean Architecture layers (see `CLAUDE.md`): `coffer/domain`,
   `coffer/parsers`, `coffer/ingestion`, `coffer/persistence`, `coffer/api`, `coffer/web`.
 - Tooling: uv (or poetry), `ruff`, `mypy --strict`, `pytest`, `import-linter` for the
