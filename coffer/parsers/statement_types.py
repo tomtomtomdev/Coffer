@@ -42,22 +42,29 @@ class ParsedTransaction:
 
 @dataclass(frozen=True)
 class ParsedStatement:
-    institution: str  # "cimb"
-    account_type: str  # "cimb_credit_card"
+    institution: str  # "cimb", "bca"
+    account_type: str  # "cimb_credit_card", "bca_savings"
     parser_version: str
     account_number_masked: str
     currency: str
 
     period_start: datetime.date
-    period_end: datetime.date  # = statement date (Tgl. Statement)
+    period_end: datetime.date  # CC: statement date (Tgl. Statement). Savings: month-end.
 
-    # credit-card summary block (feeds SPEC §3.1 liability + §3.4 bill aggregator)
-    opening_balance: Decimal  # LAST BALANCE
-    closing_balance: Decimal  # ENDING BALANCE
-    statement_balance: Decimal  # Tagihan Baru (new billing) — the liability figure
-    minimum_payment: Decimal  # Pembayaran Minimum
-    overdue_minimum: Decimal  # Tagihan Minimum Yang Tertunggak
-    due_date: datetime.date  # Tgl. Jatuh Tempo
+    # Balance at the period boundaries — present for every account type.
+    #   CC:      opening = LAST BALANCE,  closing = ENDING BALANCE
+    #   Savings: opening = SALDO AWAL,    closing = SALDO AKHIR
+    # Reconciliation direction is account-type-specific and lives in each parser
+    # (CC: opening + Σdebit − Σcredit == closing; savings: opening + Σcredit − Σdebit == closing).
+    opening_balance: Decimal
+    closing_balance: Decimal
+
+    # Credit-card summary block (feeds SPEC §3.1 liability + §3.4 bill aggregator).
+    # None for non-CC statements (e.g. savings).
+    statement_balance: Decimal | None = None  # Tagihan Baru (new billing) — the liability
+    minimum_payment: Decimal | None = None  # Pembayaran Minimum
+    overdue_minimum: Decimal | None = None  # Tagihan Minimum Yang Tertunggak
+    due_date: datetime.date | None = None  # Tgl. Jatuh Tempo
 
     transactions: list[ParsedTransaction] = field(default_factory=list)
 
