@@ -29,17 +29,28 @@ _Last updated: 2026-07-06_
   - Fixture: `tests/fixtures/cimb_mc_gold_2026-03.txt` (anonymized; amounts/dates real).
 
 ## In progress 🚧
-- **S1 essentially complete** — 5 of 6 remaining parsers built this session (see Done).
-  Only ⛔ `bca_tapres` is left, **blocked on a sample** (not in the batch; same contract as
-  `bca_tahapan` once provided).
+- **S1 COMPLETE** — all 6 parsers built (cimb_kartu_kredit, bca_tahapan, bca_tapres,
+  bca_kartu_kredit, ajaib_portfolio, stockbit_soa). Ready to move to S3/S4.
 - **Deferred (not blocking):** Stockbit cash-SOA dividend rows → `transactions` (feeds §3.5
   income). Portfolio parsers currently extract holdings + cash only.
+- **⚠ Net-worth double-count to handle at S7:** the BCA **Tapres** account (`4958…`) IS the
+  **Ajaib RDN** — its balance is the same money as Ajaib's reported "Saldo RDN". Recompute must
+  net/dedupe this (recognise the RDN↔broker cash identity), not sum both. Same pattern may
+  apply to Stockbit's RDN if that statement is added.
 - **Contract decision taken (portfolio shape):** chose a **separate `ParsedPortfolio`** type
   (not extending `ParsedStatement`) — snapshot with `as_of`, `holdings`, `cash_balance`,
   optional `transactions`; no balance reconcile. Downstream (ingestion/persistence/api) will
   branch on statement-vs-portfolio family. Revisit if a single-type model is preferred.
 
 ## Done (this session) ✅
+- **`bca_tapres` + shared BCA Rekening Koran engine** — commit `a487365`. Tapres sample was a
+  brokerage RDN held as a Tapres (same format as Tahapan; header + glued-`DB` differences).
+  Extracted `_bca_rekening_koran.py` engine (both header/period variants); `bca_tahapan` +
+  `bca_tapres` now thin adapters. 9 tests; Tahapan's 14 stayed green through the refactor.
+  → **S1 now complete (6/6 parsers).**
+- **`bca_tahapan` verified on a 2nd real statement** — the May-26 statement parsed + reconciled
+  (88 txns, 8 pages); May's SALDO AKHIR (1,271,334.69) == June's SALDO AWAL exactly, validating
+  cross-statement continuity (§3.1). Not committed as a fixture (offer stands).
 - **S2 — decryption stage (static path)** — commit `8bb3269`. Ingestion-layer in-memory
   decrypt (`coffer/ingestion/decrypt.py`): `is_encrypted`, `decrypt_to_stream`,
   `to_plaintext_stream`; `PasswordScheme` enum; wrong password raises without leaking it.
@@ -65,11 +76,12 @@ _Last updated: 2026-07-06_
     `TAGIHAN BARU` — the §3.3 intra-account payment link; `counterparty_acct` = the CC number.
 
 ## Next up (suggested order)
-1. **S4 — persistence layer** (no external blocker; depends only on S0) — good next slice while
-   samples/scheme are gathered. Postgres schema for SPEC §2 incl. `holding`; repo interfaces in
-   `domain`, impls in `persistence`; ParsedStatement + ParsedPortfolio both persist.
-2. **S2 — decryption stage** — build the `static` path; blocked on CIMB scheme for end-to-end.
-3. **S1 tail** — `bca_tapres` (needs sample); Stockbit cash-SOA dividend rows (deferred).
+1. **S3 — validation gate** OR **S4 — persistence** (both unblocked; depend only on S0/S1).
+   - S3: generalize the per-parser reconcile into a pipeline stage + near-empty→manual routing.
+   - S4: Postgres schema for SPEC §2 incl. `holding`; repo interfaces in `domain`, impls in
+     `persistence`; ParsedStatement + ParsedPortfolio both persist. (`sqlalchemy-2x` skill ready.)
+2. **S1 tail (deferred, not blocking):** Stockbit cash-SOA dividend rows → `transactions`.
+3. **Optional:** commit the May-26 Tahapan as a 2nd regression fixture (cross-statement chain).
 
 ## Live decisions
 - Money is `Decimal` end-to-end; `id-ID` formatting only at the UI edge.
@@ -78,7 +90,7 @@ _Last updated: 2026-07-06_
 - Retention: encrypted original only; plaintext never on disk; reparse re-decrypts.
 
 ## Blockers (need Tommy)
-- ⛔ **`bca_tapres` sample** — needed to build that parser (same contract as `bca_tahapan`).
+- ℹ️ **`bca_tapres` sample** — RESOLVED: provided (the RDN/Tapres statement); parser built.
 - ℹ️ **CIMB password scheme** — RESOLVED: **static** (same every month).
 - ℹ️ **Password entry mechanism** — Tommy prefers runtime entry over storing it (env-file
   leak risk). S2 decrypt is already password-source-agnostic; finalize at S9: getpass prompt
