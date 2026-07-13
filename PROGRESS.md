@@ -3,7 +3,7 @@
 > Persistent memory across cold sessions. Read this first. Update it last.
 > Format: what's done, what's in progress, what's next, and any live decisions/blockers.
 
-_Last updated: 2026-07-06_
+_Last updated: 2026-07-13_
 
 ## Where things stand
 - `SPEC.md` — stable. All §8 decisions resolved except the CIMB password scheme.
@@ -46,6 +46,22 @@ _Last updated: 2026-07-06_
   branch on statement-vs-portfolio family. Revisit if a single-type model is preferred.
 
 ## Done (this session) ✅
+- **S3 — validation gate** (`coffer/ingestion/validate.py`). Generalizes the per-parser
+  reconcile into one pipeline gate returning a **routing decision** (not a raise):
+  `OK` / `NEEDS_MANUAL_REVIEW` (near-empty extraction → OCR/manual, no alert) /
+  `REJECTED` (schema mismatch or hard cash/CC balance discontinuity → `alert=True`, no ingest).
+  - Continuity is re-derived independently of the parser (defense in depth, SPEC §6): asset
+    (`bca_savings`: opening + Σcr − Σdb == closing) vs liability (`*_credit_card`: opening +
+    Σdb − Σcr == closing, plus Tagihan Baru == closing). Unknown `account_type` → `ValueError`
+    (refuse to guess a money sign convention) — programmer error, not bad data.
+  - Portfolio lot continuity stays **soft** (SPEC §3.2): never REJECTED for lot movement; only
+    a structurally empty snapshot (no holdings + no cash) routes to manual review.
+  - `check_extraction(text)` is the near-empty gate (`MIN_EXTRACTED_CHARS = 50`), extracted from
+    the BCA engine's inline check so the whole pipeline shares one threshold. Parsers keep their
+    own internal raise as their contract ("raise, never return partial data").
+  - 16 tests (`tests/test_validate.py`): tampered savings + CC rejected & alert; dormant savings
+    OK; near-empty → manual; portfolio soft path; real CIMB + Ajaib fixtures round-trip → OK.
+    Full gate green: ruff · ruff-format · mypy --strict · lint-imports · **79 pytest**.
 - **`bca_tapres` + shared BCA Rekening Koran engine** — commit `a487365`. Tapres sample was a
   brokerage RDN held as a Tapres (same format as Tahapan; header + glued-`DB` differences).
   Extracted `_bca_rekening_koran.py` engine (both header/period variants); `bca_tahapan` +
@@ -79,12 +95,15 @@ _Last updated: 2026-07-06_
     `TAGIHAN BARU` — the §3.3 intra-account payment link; `counterparty_acct` = the CC number.
 
 ## Next up (suggested order)
-1. **S3 — validation gate** OR **S4 — persistence** (both unblocked; depend only on S0/S1).
-   - S3: generalize the per-parser reconcile into a pipeline stage + near-empty→manual routing.
-   - S4: Postgres schema for SPEC §2 incl. `holding`; repo interfaces in `domain`, impls in
-     `persistence`; ParsedStatement + ParsedPortfolio both persist. (`sqlalchemy-2x` skill ready.)
+1. **S4 — persistence** (unblocked; depends only on S0). Postgres schema for SPEC §2 incl.
+   `holding`; repo interfaces in `domain`, impls in `persistence`; ParsedStatement +
+   ParsedPortfolio both persist; encryption at rest. (`sqlalchemy-2x` skill ready.)
+   - Remember the RDN↔broker-cash double-count when seeding accounts (see In progress ⚠).
 2. **S1 tail (deferred, not blocking):** Stockbit cash-SOA dividend rows → `transactions`.
 3. **Optional:** commit the May-26 Tahapan as a 2nd regression fixture (cross-statement chain).
+4. **S9 wiring note:** the pipeline (`decrypt → parse → validate → dedup → …`) now has its
+   validate stage; S9 maps `ValidationResult` → the upload response counts (rejected / needs
+   password / needs account / new / dup).
 
 ## Live decisions
 - Money is `Decimal` end-to-end; `id-ID` formatting only at the UI edge.

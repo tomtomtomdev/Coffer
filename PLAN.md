@@ -43,12 +43,13 @@ budgets/goals, notifications, multi-currency.
 - **Blocker:** which scheme CIMB uses (SPEC §8). Build the `static` path now; wire `derived`/
   `per_statement` once Tommy confirms. Verify end-to-end against one *still-locked* CIMB PDF.
 
-### S3 · Validation gate ⬜
+### S3 · Validation gate ✅
 - Generalize the parser-level reconcile into a pipeline stage: schema check, balance
   continuity (hard-fail cash/CC), near-empty extraction → OCR/manual route, soft portfolio
   lot continuity.
-- **Done when:** a corrupted fixture is rejected and alerts; a scanned-ish (empty-text) fixture
-  routes to manual review instead of ingesting.
+- **Done:** `coffer/ingestion/validate.py` returns a routing decision (`OK` /
+  `NEEDS_MANUAL_REVIEW` / `REJECTED`, `alert` only on REJECTED). Tampered cash/CC statements
+  rejected + alert; near-empty text → manual review; portfolio lot continuity soft. 16 tests.
 
 ---
 
