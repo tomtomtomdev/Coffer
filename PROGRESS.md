@@ -5,6 +5,33 @@
 
 _Last updated: 2026-07-13_
 
+## Done (this session) ✅ — S4 persistence
+- **S4 — persistence layer** (SQLAlchemy 2.0 + Alembic + Postgres). All 11 SPEC §2 tables.
+  - **Domain layer now non-empty:** `coffer/domain/{enums,entities,repositories}.py` — pure
+    value objects + repository **Protocols**. Depends on nothing; import-linter still KEPT.
+    Moved `PasswordScheme` into `domain.enums` (single source); `ingestion.decrypt` re-exports it.
+  - **Persistence:** `models.py` (ORM, money = `Numeric` never `Float`; `Numeric(18,2)` for IDR
+    balances, `Numeric(28,8)` for broker lots/prices), `mappers.py` (domain↔row at the boundary),
+    `repositories.py` (11 `Sql*Repo`), `crypto.py` (Fernet `FieldCipher`), `config.py` (URL + key
+    from env, never hardcoded), `db.py` (engine/session helpers).
+  - **Encryption at rest (SPEC §6):** `institution_credential.secret` is encrypted into the
+    `password_enc` column by the credential mapper — domain sees plaintext, DB stores ciphertext.
+    Test asserts the raw column is NOT the plaintext and only the cipher recovers it.
+  - **Migration:** `migrations/` at repo root (outside the `coffer` package, so mypy/ruff/
+    import-linter don't scan generated files). One revision; `alembic check` shows no drift;
+    up→down→up tested against a throwaway DB. URL/key read from env in `env.py`.
+  - **Tests (13):** round-trip per aggregate against a **real Postgres** (per skill — not SQLite),
+    Decimal exactness (`838303.83`, fractional avg_price), dedup lookups (file/content/dedup_key),
+    telegram-id + account-number resolution, active-only learned rules, snapshot upsert idempotent
+    on `(household_id, grid_date)`. `tests/conftest.py`: per-test transaction rollback isolation.
+  - **CI:** added a `postgres:16` service + `COFFER_DATABASE_URL`/`COFFER_ENCRYPTION_KEY` env
+    (throwaway key — protects only synthetic test data). Full gate green: ruff · ruff-format ·
+    mypy --strict · lint-imports · **92 pytest**.
+  - **RDN double-count note (In progress ⚠) NOT yet handled** — that's S7 recompute logic; S4 only
+    provides the storage (multiple RDN accounts per member persist fine).
+  - **Next:** S5 dedup (uses `by_file_hash`/`by_content_hash`/`by_dedup_key`), then S6/S7.
+
+
 ## Where things stand
 - `SPEC.md` — stable. All §8 decisions resolved except the CIMB password scheme.
 - Visual target — **frozen** (Claude Design hi-fi handoff, 4 views + tokens + `id-ID` locale).

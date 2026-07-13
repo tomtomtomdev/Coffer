@@ -55,12 +55,19 @@ budgets/goals, notifications, multi-currency.
 
 ## Phase B — Data + logic
 
-### S4 · Persistence layer ⬜
-- Postgres schema + migrations for the full SPEC §2 model (`household`, `member`, `account`,
-  `institution_credential`, `statement`, `transaction`, `category`, `override`,
-  `learned_rule`, `holding`, `networth_snapshot`). Encryption at rest.
-- Repository interfaces in `domain`, implementations in `persistence` (dependency points inward).
-- **Test:** repo round-trip per aggregate; migration up/down.
+### S4 · Persistence layer ✅
+- Postgres schema + migration for the full SPEC §2 model (all 11 tables:
+  `household`, `member`, `account`, `institution_credential`, `statement`, `transaction`,
+  `category`, `override`, `learned_rule`, `holding`, `networth_snapshot`). SQLAlchemy 2.0
+  ORM (`Numeric`, never `Float`); one Alembic migration, up/down tested; `alembic check`
+  confirms no model↔schema drift.
+- **Encryption at rest:** `institution_credential` secret is Fernet-encrypted into
+  `password_enc` by the persistence mapper (domain holds plaintext, DB holds ciphertext).
+- Repository interfaces (Protocols) in `domain/repositories.py`; SQLAlchemy impls in
+  `persistence/repositories.py` (dependency points inward — import-linter still KEPT).
+- **Done:** repo round-trip test per aggregate + Decimal-exactness + encryption-at-rest +
+  snapshot upsert idempotency + migration up/down/up, all against a real Postgres. Full gate
+  green (ruff · format · mypy --strict · lint-imports · **92 pytest**). CI gained a Postgres service.
 - **Depends on:** S0.
 
 ### S5 · Dedup ⬜

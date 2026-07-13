@@ -8,6 +8,30 @@ on:
 jobs:
   gate:
     runs-on: ubuntu-latest
+
+    # S4 persistence tests run against a real Postgres (SQLite differs on NUMERIC /
+    # locking / ON CONFLICT). The `coffer` user is a superuser so the migration test
+    # can create/drop its own throwaway database.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: coffer
+          POSTGRES_PASSWORD: coffer
+          POSTGRES_DB: coffer_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      COFFER_DATABASE_URL: postgresql+psycopg://coffer:coffer@localhost:5432/coffer_test
+      # Throwaway Fernet key — CI encrypts only synthetic test data, protects nothing real.
+      COFFER_ENCRYPTION_KEY: d-18lHMEKJzTS-pnc_z37hhdf7Bud4hp230PChXzLZk=
+
     steps:
       - uses: actions/checkout@v4
 

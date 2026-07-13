@@ -18,18 +18,21 @@ storing it; it can equally be entered at runtime.
 from __future__ import annotations
 
 import io
-from enum import StrEnum
 from typing import IO
 
 import pikepdf
 
+# Re-exported from the domain so the ingestion and persistence layers share one
+# vocabulary (the canonical definition lives in ``coffer.domain.enums``).
+from coffer.domain.enums import PasswordScheme
 
-class PasswordScheme(StrEnum):
-    """How an institution's statement password is obtained (SPEC §2/§4)."""
-
-    STATIC = "static"  # same password every statement
-    DERIVED = "derived"  # computed from stored inputs (e.g. DOB + card digits)
-    PER_STATEMENT = "per_statement"  # a new password each time; prompt, never persist
+__all__ = [
+    "PasswordScheme",
+    "StatementDecryptionError",
+    "decrypt_to_stream",
+    "is_encrypted",
+    "to_plaintext_stream",
+]
 
 
 class StatementDecryptionError(Exception):
