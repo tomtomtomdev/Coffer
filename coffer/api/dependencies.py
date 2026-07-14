@@ -23,8 +23,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from coffer.api.adapters import FilesystemStatementArchive, PdfPlumberReader
 from coffer.api.parsing import PARSERS
+from coffer.api.telegram_adapters import HttpxTelegramClient, InMemoryPendingUploadStore
 from coffer.ingestion.pipeline import IngestStatement
 from coffer.ingestion.recompute import InProcessRecomputeLock
+from coffer.ingestion.telegram import TelegramIngest
 from coffer.persistence.config import Settings
 from coffer.persistence.crypto import FieldCipher
 from coffer.persistence.db import create_db_engine, create_session_factory
@@ -32,6 +34,7 @@ from coffer.persistence.repositories import (
     SqlAccountRepo,
     SqlCategoryRepo,
     SqlHoldingRepo,
+    SqlInstitutionCredentialRepo,
     SqlLearnedRuleRepo,
     SqlMemberRepo,
     SqlNetworthSnapshotRepo,
@@ -40,6 +43,9 @@ from coffer.persistence.repositories import (
 )
 
 STATEMENT_ARCHIVE_DIR_ENV = "COFFER_STATEMENT_ARCHIVE_DIR"
+TELEGRAM_BOT_TOKEN_ENV = "COFFER_TELEGRAM_BOT_TOKEN"
+TELEGRAM_WEBHOOK_SECRET_ENV = "COFFER_TELEGRAM_WEBHOOK_SECRET"
+TELEGRAM_API_BASE_ENV = "COFFER_TELEGRAM_API_BASE"
 
 
 @lru_cache
@@ -73,6 +79,20 @@ def _archive() -> FilesystemStatementArchive:
     return FilesystemStatementArchive(base, _cipher())
 
 
+@lru_cache
+def _telegram_client() -> HttpxTelegramClient:
+    token = os.environ[TELEGRAM_BOT_TOKEN_ENV]  # required for the bot to work
+    api_base = os.environ.get(TELEGRAM_API_BASE_ENV, "https://api.telegram.org")
+    return HttpxTelegramClient(token, api_base=api_base)
+
+
+@lru_cache
+def _pending_store() -> InMemoryPendingUploadStore:
+    # One shared store so an ambiguity keyboard's callback (a separate request) can find
+    # the pending upload stashed by the original document request.
+    return InMemoryPendingUploadStore()
+
+
 def _now() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
 
@@ -102,3 +122,29 @@ def get_ingest_use_case() -> Iterator[IngestStatement]:
     with _session_factory()() as session:
         yield build_ingest_use_case(session)
         session.commit()
+
+
+def build_telegram_use_case(session: Session) -> TelegramIngest:
+    """Wire the Telegram bot over the same session-bound ingest use-case (S10)."""
+    return TelegramIngest(
+        members=SqlMemberRepo(session),
+        accounts=SqlAccountRepo(session),
+        credentials=SqlInstitutionCredentialRepo(session, _cipher()),
+        reader=PdfPlumberReader(),
+        ingest=build_ingest_use_case(session),
+        client=_telegram_client(),
+        pending=_pending_store(),
+    )
+
+
+def get_telegram_use_case() -> Iterator[TelegramIngest]:
+    """Per-request Telegram use-case, same commit-on-success unit-of-work as web upload."""
+    with _session_factory()() as session:
+        yield build_telegram_use_case(session)
+        session.commit()
+
+
+def get_webhook_secret() -> str:
+    """The configured Telegram webhook secret token (SPEC §5). Empty when unset →
+    ``verify_telegram_secret`` rejects every request (fail closed)."""
+    return os.environ.get(TELEGRAM_WEBHOOK_SECRET_ENV, "")

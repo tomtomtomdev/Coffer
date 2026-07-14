@@ -135,9 +135,21 @@ budgets/goals, notifications, multi-currency.
   fix). See PROGRESS for decisions.
 - **Depends on:** S2, S3, S4, S5, S7.
 
-### S10 · Telegram bot ⬜
-- Webhook (secret-token verify), server-side `telegram_user_id` allowlist, account auto-detect,
-  inline keyboard on ambiguity, password prompt, **delete source message after ingest**.
+### S10 · Telegram bot ✅
+- `coffer/ingestion/telegram.py` — the `TelegramIngest` use-case (a Humble Object over
+  `IngestStatement.execute` with `uploaded_via=TELEGRAM`): server-side `telegram_user_id`
+  allowlist (unknown user → silent ignore), account auto-detect via `detect.py` sniffer →
+  resolve to a household account, inline keyboard on ambiguity + callback completion,
+  stored-`static`-credential decryption for encrypted statements (never prompt in chat),
+  **delete source message after a successful ingest**. `coffer/api/telegram_routes.py` is
+  the webhook (secret-token verify via `hmac.compare_digest`, `Update` parsing, dispatch);
+  `coffer/api/telegram_adapters.py` has `HttpxTelegramClient` + `InMemoryPendingUploadStore`.
+- **Done:** unknown-user silent ignore; detect→single-account auto-ingest+delete;
+  ambiguous/undetected→keyboard, callback completes+deletes; encrypted→stored static
+  credential (no chat password); 403 on bad secret token; rejected/duplicate keep the
+  source. 33 tests (sniffer + use-case + webhook `TestClient` + httpx `MockTransport`
+  adapter); full gate green (**215 pytest**; alembic no drift — no schema change). Password
+  reconciliation: web = runtime prompt, Telegram = stored `static` credential (unattended).
 - Public webhook via tunnel; dashboard/API stays on LAN/VPN (SPEC §5).
 - **Depends on:** S9.
 

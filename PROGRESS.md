@@ -5,7 +5,89 @@
 
 _Last updated: 2026-07-14_
 
-## Done (this session) ✅ — S9 ingestion API (FastAPI)
+## Done (this session) ✅ — S10 Telegram bot
+- **S10 — Telegram ingestion bot.** A second entry point into the S9 pipeline, built as a
+  Humble Object over `IngestStatement.execute` (reused verbatim with `uploaded_via=TELEGRAM`).
+  - **`coffer/ingestion/detect.py` — pure account-type sniffer.** `detect_account_type(text)
+    -> AccountType | None`, grounded in the anonymized fixture headers (`REKENING TAHAPAN`/
+    `TAPRES` → savings; `REKENING KARTU KREDIT` → BCA card; `CIMB`/`NIAGA` or `Tgl. Statement`+
+    `Tgl. Jatuh Tempo` → CIMB; `AJAIB`/`STOCKBIT` brand → portfolio). **Decision — bank
+    HEADERS are checked before brand names:** a BCA RDN/Tapres statement mentions the broker
+    ("AJAIB") in its transaction lines, so the definitive `REKENING TAPRES` header must win
+    (a naive brand match mis-classified the Tapres fixture — caught by the test). Matches the
+    specific `REKENING KARTU KREDIT` phrase, not generic `kartu kredit` (which CIMB also
+    contains). 11 tests over every real fixture + false-positive guards.
+  - **`coffer/ingestion/telegram.py` — the `TelegramIngest` use-case.** Pure + repo/port-driven
+    (mirrors `pipeline`): domain repo Protocols + injected ports (`TelegramClient`,
+    `PendingUploadStore`, the shared `PdfReader`, and an `Ingestor` Protocol satisfied by
+    `IngestStatement`). Owns only the Telegram-specific concerns:
+    - **Server-side allowlist** (SPEC §5): `telegram_user_id` → `member` via
+      `MemberRepo.by_telegram_user_id`; an unknown user is **silently ignored** — no download,
+      no reply (don't confirm the bot exists to a stranger).
+    - **Account auto-detection**: decrypt + extract text, sniff the type, resolve to the
+      household's accounts of that type. Exactly one → ingest immediately; **0 (undetected /
+      no match) or >1 (ambiguous) → inline keyboard** to pick, completed on the callback.
+      `callback_data = acct:{chat}:{msg}:{account_id}` (no random token — deterministic); the
+      `PendingUpload` (file_id + uploader) is stashed keyed `chat:message`. Only the original
+      uploader may complete their own pending upload; the chosen account is re-checked to
+      belong to the household.
+    - **Delete after ingest** (SPEC §4): on `INGESTED` the source message is deleted (untrusted
+      transport); a REJECTED / DUPLICATE / needs-* outcome keeps it.
+  - **Decision — password reconciliation (the long-open "Password entry mechanism").** Web =
+    runtime prompt (Tommy's preference). **Telegram = stored `static` credential**, because an
+    unattended upload can't prompt and a password typed into a Telegram chat is exactly the
+    plaintext-on-untrusted-transport we delete messages to avoid. For encrypted PDFs the
+    use-case tries the household's stored `static` `InstitutionCredential` secrets in memory
+    (bounded by the household's few institutions — enumerated via `accounts.list_by_household`
+    → distinct institutions → `credentials.by_household_institution`; **no new repo method**);
+    the one that opens the PDF is the password passed to `execute`. None opens it → reply
+    "🔒 needs password", no ingest. The tried password is never logged (security invariant).
+    `derived`/`per_statement` Telegram decryption is a documented follow-up.
+  - **`coffer/api/telegram_routes.py` — the webhook** (`POST /api/telegram/webhook`), the only
+    publicly-exposed surface (SPEC §5). **Verifies `X-Telegram-Bot-Api-Secret-Token` with
+    `hmac.compare_digest`** (fail-closed: empty configured secret → 403 everything) via a
+    `verify_telegram_secret` dependency, parses a minimal `Update` (edge-only Pydantic; `from`
+    read via alias), and dispatches `handle_document` (PDF documents only) / `handle_callback`.
+    Always answers `200 {"ok": true}` for authentic requests so Telegram doesn't retry; 403 for
+    unauthenticated. B008 per-file-ignored (FastAPI DI idiom).
+  - **`coffer/api/telegram_adapters.py`** — `HttpxTelegramClient` (Bot API over httpx: two-step
+    getFile→download, `sendMessage` with `inline_keyboard`, `deleteMessage`,
+    `answerCallbackQuery`; injectable `transport` as a test seam; bot token only ever in the URL,
+    never logged) + `InMemoryPendingUploadStore` (process-local — fine for a 2-person household;
+    a stale pending just asks for a re-send; Redis/PG if it ever scales out).
+  - **Wiring** (`app.py` includes the telegram router; `dependencies.py`): env-lazy singletons
+    `_telegram_client()` (`COFFER_TELEGRAM_BOT_TOKEN` / `COFFER_TELEGRAM_API_BASE`),
+    `_pending_store()` (**one shared instance** so the callback request finds the document
+    request's pending), `get_webhook_secret()` (`COFFER_TELEGRAM_WEBHOOK_SECRET`),
+    `build_telegram_use_case`/`get_telegram_use_case` (same commit-on-success unit-of-work as
+    web upload). `httpx` promoted from a dev dep to a **runtime** dep.
+  - **Tests (33 new):** `test_detect.py` (11); `test_telegram.py` (11, in-memory fakes) —
+    allowlist silent-ignore / detect→ingest+delete / rejected+duplicate keep source / encrypted
+    uses stored credential / encrypted no-credential→needs-password / ambiguous→keyboard /
+    undetected→keyboard-of-all / callback completes+deletes / callback-from-other-user ignored /
+    expired-pending; `test_telegram_webhook.py` (6, `TestClient`) — missing/wrong secret→403,
+    document + callback dispatch, non-PDF + plain-text ignored; `test_telegram_adapters.py` (5,
+    httpx `MockTransport`) — two-step download URL/bytes, inline-keyboard payload shaping,
+    reply-markup omitted without buttons, delete/answer methods, pending store round-trip+single-use.
+  - Full gate green: ruff · ruff-format · mypy --strict (66 files) · lint-imports (KEPT) ·
+    **215 pytest** (33 new) · alembic check **no drift** (no schema change — Telegram uses only
+    existing tables/repos).
+  - **⚠ Known limitations / follow-ups:** (a) the webhook processes ingest **synchronously** in
+    the request (fine for small PDFs / 2 users; a background queue is the scaling fix — Telegram
+    times out ~60s); (b) `HttpxTelegramClient` errors bubble as 500 → Telegram retries — a broad
+    route-level guard returning 200 is a hardening follow-up; (c) `InMemoryPendingUploadStore` is
+    process-local; (d) masked-account auto-disambiguation (so two same-type accounts don't always
+    need a keyboard tap) still deferred (the S6/S9 mask-normalization item); (e) `derived`/
+    `per_statement` Telegram decryption not wired.
+  - **Next:** **Phase C dashboards.** S11 Ringkasan (§3.1 net-worth hero + tide chart + Rincian
+    Akun + bill due-date card — **confirm §3.4 placement with Tommy first**), S12 Portofolio,
+    S13 Belanja (S8 read models + S6 review queue), S14 Arus Kas (S8 cash-flow). All consume the
+    now-populated `networth_snapshot` + read models. Also: set the real Telegram webhook with
+    `secret_token` (`setWebhook`) behind the tunnel; **capture the CIMB password** to finalize
+    its `password_scheme` + seed the `institution_credential` so encrypted CIMB ingests via
+    Telegram (the S2/§8 open item — now the only thing between the bot and encrypted CIMB).
+
+## Done (prev session) ✅ — S9 ingestion API (FastAPI)
 - **S9 — ingestion orchestration + web upload endpoint.** The pipeline
   `Decrypt → Parse → Validate → Dedup → Persist → Recompute` (SPEC §4) is now wired.
   - **`coffer/ingestion/pipeline.py` — the `IngestStatement` use-case.** Pure + repo-driven
@@ -411,10 +493,10 @@ _Last updated: 2026-07-14_
 ## Blockers (need Tommy)
 - ℹ️ **`bca_tapres` sample** — RESOLVED: provided (the RDN/Tapres statement); parser built.
 - ℹ️ **CIMB password scheme** — RESOLVED: **static** (same every month).
-- ℹ️ **Password entry mechanism** — Tommy prefers runtime entry over storing it (env-file
-  leak risk). S2 decrypt is already password-source-agnostic; finalize at S9: getpass prompt
-  / in-memory-for-session / OS keychain vs. encrypted-at-rest. Note: unattended Telegram
-  ingest (S10) needs the password available without a human prompt — reconcile then.
+- ✅ **Password entry mechanism** — RESOLVED at S10. **Web = runtime prompt** (Tommy's
+  preference, S9); **Telegram = stored `static` `InstitutionCredential`** (unattended can't
+  prompt; a chat-typed password defeats message-deletion). No env-file password storage. The
+  only remaining runtime input is the **CIMB password itself** (below) to seed its credential.
 - ℹ️ **Portfolio contract shape** — RESOLVED by best-judgment while away: separate
   `ParsedPortfolio` type. Flag if you'd prefer a single-type model.
 - ⛔ **§3.4 bill-aggregator placement** — card on Ringkasan (recommended) vs. 5th tab — confirm before S11.
