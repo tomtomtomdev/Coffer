@@ -340,6 +340,9 @@ class _FakeLearnedRuleRepo:
     def get(self, rule_id: int) -> LearnedRule | None:
         raise NotImplementedError
 
+    def bump_hit_count(self, rule_id: int, *, by: int = 1) -> None:
+        raise NotImplementedError
+
 
 def test_categorize_wrapper_fetches_from_repos() -> None:
     rule = LearnedRule(

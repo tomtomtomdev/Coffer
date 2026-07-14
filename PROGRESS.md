@@ -5,7 +5,89 @@
 
 _Last updated: 2026-07-14_
 
-## Done (this session) ✅ — S8 spend + cash-flow read models
+## Done (this session) ✅ — S9 ingestion API (FastAPI)
+- **S9 — ingestion orchestration + web upload endpoint.** The pipeline
+  `Decrypt → Parse → Validate → Dedup → Persist → Recompute` (SPEC §4) is now wired.
+  - **`coffer/ingestion/pipeline.py` — the `IngestStatement` use-case.** Pure + repo-driven
+    like every other stage: reads/writes only through the domain repo Protocols + injected
+    infra **ports**, never imports `persistence`, testable with in-memory fakes (mirrors
+    dedup/categorize/recompute). **Decision — the orchestrator lives in `ingestion`, not
+    `api`.** api stays a Humble Object (router + DI + adapters); the use-case is the pipeline,
+    so it belongs with the other stages. import-linter KEPT.
+  - **Outcomes** (one per file, → SPEC §4 response): `INGESTED` (+ new/dup/holdings counts),
+    `DUPLICATE` (file/content hash), `NEEDS_PASSWORD`, `NEEDS_ACCOUNT`, `NEEDS_REVIEW`
+    (near-empty extraction / empty portfolio — not an alert), `REJECTED` (parser raised or
+    validate rejected — `alert=True`). `IngestResult.alert` is True only for REJECTED.
+  - **Ports (declared in `pipeline.py`, à la `HouseholdRecomputeLock`):**
+    - `PdfReader` — decrypt-in-memory + text-extract in one adapter, returning
+      `DecryptedPdf(text, was_encrypted)`. Near-empty routing uses the **shared
+      `validate.check_extraction`** on `pdf.text` *before* `parse_text`, so a scanned PDF →
+      `NEEDS_REVIEW` (not a parser raise). Concrete `PdfPlumberReader` (pikepdf→pdfplumber)
+      in `coffer/api/adapters.py`.
+    - `StatementArchive` — retains only the **encrypted original** (SPEC §4). Concrete
+      `FilesystemStatementArchive`: a password-protected PDF is stored as-is; an
+      **unencrypted arrival is Fernet-encrypted at rest** before writing (plaintext never on
+      disk). Added `FieldCipher.encrypt_bytes/decrypt_bytes`.
+  - **Decision — password is a runtime argument only** (Tommy prefers runtime entry over
+    storing it — see Blockers). The reader raises `StatementDecryptionError` on wrong/missing
+    → `NEEDS_PASSWORD`; the password is never logged. Wiring the `static`-scheme
+    stored-credential path (via `InstitutionCredentialRepo`) is a clean extension — inject a
+    reader that consults it. S10's unattended Telegram ingest will force this decision.
+  - **`closing_balance` populated per family** (the S7 wiring note): savings = SALDO AKHIR;
+    CC = Tagihan Baru / ENDING BALANCE (validate already asserts them equal); portfolio =
+    `ParsedPortfolio.total_market_value()` — **broker cash excluded** (counted once via the
+    mirroring RDN savings balance, the S7 no-double-count-by-definition). Portfolio persists
+    a statement with `period_start == period_end == as_of` + its `holding` rows.
+  - **`hit_count` bump wired (the S6-deferred loose end).** Added
+    `LearnedRuleRepo.bump_hit_count(rule_id, *, by)` (Protocol + atomic `UPDATE … hit_count +
+    by` in `SqlLearnedRuleRepo`); the use-case accumulates per-rule hits over the batch and
+    bumps once each. **No migration** (`hit_count` column existed since S4). Updated the
+    `test_categorize` fake to the widened Protocol.
+  - **Account & parser resolution.** Web sends the manually-selected `account_id`; an
+    unknown id → `NEEDS_ACCOUNT`. Household resolved via account→member→household. Parser
+    chosen by `account_type` (`coffer/api/parsing.py` registry over each parser's pure
+    `parse_text`); an unregistered type raises (wiring error). Masked-number cross-check of
+    the selected account vs the parsed statement is **deferred** (mask normalization still
+    open — see S6); a wrong selection surfaces naturally as a parse `REJECTED`. Tahapan vs
+    Tapres both `bca_savings` share one engine → registry uses `bca_tahapan.parse_text`
+    (the `parser_version` distinction is a reparse-only follow-up).
+  - **`coffer/api/`** — `app.py` (`create_app()` factory + `app`), `routes.py`
+    (`POST /api/statements`, multipart: `file` + `account_id` + optional `password` /
+    `uploaded_by_member_id`), `schemas.py` (`IngestResponse` — edge-only Pydantic),
+    `dependencies.py` (composition root: env-lazy `lru_cache` singletons, per-request
+    session with **commit-on-success / rollback-on-error**, one shared `InProcessRecomputeLock`),
+    `adapters.py`, `parsing.py`. Deps added: `fastapi`, `python-multipart`, `httpx` (dev).
+    `B008` per-file-ignored for `routes.py` (FastAPI DI idiom).
+  - **⚠ Known limitation — recompute lock vs transaction scope.** The `InProcessRecomputeLock`
+    is released when `recompute_for_statement` returns, but the endpoint commits *after* the
+    use-case (unit-of-work is the session dependency's job). So two concurrent **same-household**
+    uploads could each recompute before the other commits and write a stale snapshot. Recompute
+    is idempotent (each grid rebuilt from full history), so the **next** ingest self-heals it;
+    the robust fix is a transaction-scoped `pg_advisory_xact_lock` on household id (already
+    flagged in `recompute.py` for multi-process). Fine for a 2-person household; revisit if it
+    bites.
+  - **Tests (18 new):** `test_pipeline.py` (8, in-memory fakes) — needs-password / needs-account
+    / needs-review / rejected(parser raise + balance discontinuity) / duplicate / the happy path
+    (persist + per-row categorize [regex, learned-rule, uncategorized] + intra-batch dedup skip +
+    hit_count bump + snapshot recompute) / portfolio (holdings persisted, cash excluded from
+    closing_balance + snapshot); `test_api_ingestion.py` (6, `TestClient` + faked use-case) —
+    counts surfaced, needs-password, rejected→alert, 422s, member forwarded; `test_pipeline_integration.py`
+    (2, real SQL repos + Postgres) — CIMB fixture end-to-end (8 txns, closing 838303.83,
+    liability snapshot net −838303.83) + exact re-upload → DUPLICATE; `test_api_adapters.py` (2)
+    — archive encrypts-at-rest (no plaintext on disk) + stores encrypted as-is + reload round-trip.
+  - Full gate green: ruff · ruff-format · mypy --strict (58 files) · lint-imports (KEPT) ·
+    **182 pytest** (18 new) · alembic check **no drift** (no schema change — `bump_hit_count` is
+    a method; `hit_count`/`closing_balance`/`encrypted_file_path` all pre-existed).
+  - **Next:** **S10 — Telegram bot** (depends S9). Reuse the same `IngestStatement.execute`
+    with `uploaded_via=TELEGRAM`. Webhook: verify `X-Telegram-Bot-Api-Secret-Token`
+    (`hmac.compare_digest`), enforce the `telegram_user_id` allowlist **server-side**,
+    auto-detect account from header text (the S9 registry is by `account_type`; S10 needs a
+    text→account_type sniffer + inline-keyboard on ambiguity → resolves to an `account_id`),
+    prompt for password on `NEEDS_PASSWORD`, and **delete the source message after successful
+    ingest**. This is also where the unattended-password decision (stored `static` vs prompt)
+    must be reconciled. S11–S14 dashboards consume the now-populated snapshots + read models.
+
+## Done (prev session) ✅ — S8 spend + cash-flow read models
 - **S8 — spend + cash-flow read models** (`coffer/domain/read_models.py`). Pure, repo-driven
   **query-side** use-cases for SPEC §3.3 (routine spend) + §3.5 (income / cash flow / savings).
   - **Decision — placement is `domain`, NOT `ingestion`.** Unlike validate/dedup/categorize/

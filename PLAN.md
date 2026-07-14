@@ -119,9 +119,20 @@ budgets/goals, notifications, multi-currency.
 
 ## Phase C — Interfaces
 
-### S9 · Ingestion API (FastAPI) ⬜
-- Orchestrates Decrypt → Parse → Validate → Dedup → Persist → Recompute (serialized).
-- Web upload endpoint; response surfaces new/dup/needs-account/needs-password counts.
+### S9 · Ingestion API (FastAPI) ✅
+- `coffer/ingestion/pipeline.py` — the `IngestStatement` use-case orchestrates
+  Decrypt → Parse → Validate → Dedup → Persist → Recompute (pure + repo-driven, injected
+  infra ports; recompute serialized per household). `coffer/api/` is a Humble Object: router
+  (`POST /api/statements`), `IngestResponse`, composition-root DI, `PdfPlumberReader` +
+  `FilesystemStatementArchive` adapters, parser registry.
+- **Done:** outcomes `INGESTED`/`DUPLICATE`/`NEEDS_PASSWORD`/`NEEDS_ACCOUNT`/`NEEDS_REVIEW`/
+  `REJECTED`(alert) with per-row new/dup/holdings counts; `closing_balance` populated per
+  family; `hit_count` bumped (new `LearnedRuleRepo.bump_hit_count`); encrypted original
+  retained (unencrypted → encrypted at rest). 18 tests (unit + `TestClient` + Postgres
+  integration + archive security); full gate green (**182 pytest**; alembic no drift). Password
+  is a runtime arg (not stored — Tommy's preference). Known limitation: in-process recompute
+  lock released before commit (idempotent recompute self-heals; pg advisory lock is the robust
+  fix). See PROGRESS for decisions.
 - **Depends on:** S2, S3, S4, S5, S7.
 
 ### S10 · Telegram bot ⬜

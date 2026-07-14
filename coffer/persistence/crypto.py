@@ -34,3 +34,12 @@ class FieldCipher:
     def decrypt(self, token: str) -> str:
         """A stored token → the original plaintext. Raises on tampering / wrong key."""
         return self._fernet.decrypt(token.encode("ascii")).decode("utf-8")
+
+    def encrypt_bytes(self, plaintext: bytes) -> bytes:
+        """Raw bytes → an opaque token, for at-rest file encryption (SPEC §4 retention:
+        an unencrypted statement is encrypted before it is written to disk)."""
+        return self._fernet.encrypt(plaintext)
+
+    def decrypt_bytes(self, token: bytes) -> bytes:
+        """A stored token → the original bytes. Raises on tampering / wrong key."""
+        return self._fernet.decrypt(token)

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from coffer.domain.entities import (
@@ -279,6 +279,15 @@ class SqlLearnedRuleRepo:
             .order_by(LearnedRuleRow.id)
         )
         return [mappers.learned_rule_to_domain(r) for r in rows]
+
+    def bump_hit_count(self, rule_id: int, *, by: int = 1) -> None:
+        """Atomic increment (``hit_count = hit_count + by``) so concurrent ingests
+        that both fire the same rule don't clobber each other's count."""
+        self._session.execute(
+            update(LearnedRuleRow)
+            .where(LearnedRuleRow.id == rule_id)
+            .values(hit_count=LearnedRuleRow.hit_count + by)
+        )
 
 
 class SqlHoldingRepo:
