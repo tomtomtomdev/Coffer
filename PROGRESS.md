@@ -5,7 +5,60 @@
 
 _Last updated: 2026-07-14_
 
-## Done (this session) ✅ — S6 categorization + learned rules
+## Done (this session) ✅ — S7 net-worth snapshot recompute
+- **S7 — recompute** (`coffer/ingestion/recompute.py`). Pure, repo-driven stage (mirrors
+  S3/S5/S6): reads through the domain repo Protocols only, tested with in-memory fakes.
+  - **`compute_snapshot(...)`** — one grid point's net worth by **carry-forward** (SPEC
+    §3.1): per account, value = `closing_balance` of the most recent statement with
+    `period_end <= grid` (else the account is absent). Buckets by `account_type`:
+    `bca_savings→cash`, `*_credit_card→liability`, `*_portfolio→portfolio`;
+    `net_worth = cash + portfolio − liability`. Unknown type → `ValueError` (refuse to
+    silently drop an account, cf. `validate.py`); a completeness test pins every enum.
+  - **`affected_grids(...)`** — the event-driven window: `grid(period_end)` up to (but
+    not including) the account's **next** statement's grid, else through the household
+    horizon. So a backfilled Feb (after Mar exists) updates **only** Feb; a lone
+    statement carries forward to the horizon; a same-month superseding statement → `[]`.
+  - **`recompute_for_statement(...)`** (hot path on ingest) + **`recompute_all(...)`**
+    (onboarding / post-reparse rebuild). Both **serialized per household** via an injected
+    `HouseholdRecomputeLock`; `InProcessRecomputeLock` (thread lock/household) is the
+    single-process impl — multi-process must use a Postgres advisory lock
+    (`pg_advisory_xact_lock` on household id). Idempotent: each grid recomputed from full
+    history, so re-running converges (the "concurrent ingests don't corrupt" guarantee).
+  - Grid helpers `month_end` / `iter_month_ends` (leap-Feb + year-boundary safe).
+  - **Decision — added `statement.closing_balance` (nullable `Decimal`).** §2's model
+    omitted any per-statement balance, but §3.1 needs "the most recent statement
+    balance" to carry forward — recompute has no data source without it. Added to the
+    `Statement` entity + `StatementRow` + statement mapper + **new Alembic migration**
+    `741f49a1c0c3` (chained off S4's `1764a988dedb`; up/down + `alembic check` → **no
+    drift**). Minimal (one nullable column, no data churn). **S9 must populate it per
+    family at persist:** savings = SALDO AKHIR; CC = Tagihan Baru (liability magnitude);
+    portfolio = **Σ holdings market value** (excludes broker cash — see next).
+  - **Decision — RDN↔broker-cash double-count resolved BY DEFINITION** (the long-flagged
+    S7 issue). §3.1 stacks "portfolio **market value**", not broker cash → `portfolio_total`
+    = holdings market value only. The broker's cash (Ajaib "Saldo RDN" / Stockbit "Cash
+    Investor") is the *same rupiah* as the mirroring BCA Tapres/RDN savings balance, so it
+    is counted **once**, on the bank side, in `cash_total`. **No account-number matching
+    needed** → this sidesteps the masked-acct normalization S6 deferred to S9 (for net
+    worth at least). Trade-off: broker cash with no uploaded RDN bank statement is invisible
+    to net worth — matches §3.1's literal definition and avoids the worse double-count.
+  - **Tests (22):** 20 pure (`tests/test_recompute.py`) — grid/leap-Feb, async period-end
+    alignment, carry-forward + most-recent-wins, RDN no-double-count, every-type-bucketed,
+    None-balance, all `affected_grids` window cases (backfill / gap / horizon / first /
+    same-month-superseded), repo-driven recompute + idempotency + empty-household, lock
+    serialization (spy + real-thread same-household serialized / distinct-household
+    concurrent); 1 `closing_balance` Decimal round-trip (`test_persistence_repos.py`);
+    1 Postgres integration wiring the real Sql repos through `recompute_all`
+    (`tests/test_recompute_integration.py`).
+  - **Clean Architecture:** ingestion → domain only; import-linter KEPT.
+  - Full gate green: ruff · ruff-format · mypy --strict · lint-imports · `alembic check`
+    (no drift) · **149 pytest** (22 new).
+  - **Next:** S8 (spend/cash-flow read models; depends S4+S6). **S9 wiring:** after persist,
+    set `statement.closing_balance` per family (above), then call
+    `recompute_for_statement(household_id, account_id, period_end, …)` under the
+    household lock. For a portfolio, `closing_balance = ParsedPortfolio.total_market_value()`
+    (NOT + `cash_balance`).
+
+## Done (prev session) ✅ — S6 categorization + learned rules
 - **S6 — categorization + learned-rule engine** (`coffer/ingestion/categorize.py`). Pure,
   repo-driven ingest-time classifier (mirrors S3/S5 shape) + the learned-rule lifecycle.
   - **`classify(txn, *, household_accounts, categories, active_rules) -> Categorization`** —
@@ -143,11 +196,11 @@ _Last updated: 2026-07-14_
   bca_kartu_kredit, ajaib_portfolio, stockbit_soa). Ready to move to S3/S4.
 - **Deferred (not blocking):** Stockbit cash-SOA dividend rows → `transactions` (feeds §3.5
   income). Portfolio parsers currently extract holdings + cash only.
-- **⚠ Net-worth double-count to handle at S7:** BCA **Tapres/RDN** accounts hold the same money
-  the broker statements already report as cash. Known RDN accounts (all Tommy's): `4958…` =
-  **Ajaib RDN** (= Ajaib "Saldo RDN"), `4996…` = **Stockbit RDN** (= Stockbit "Cash Investor"),
-  `4959…` = a dormant RDN (bal 1.33). Recompute must net/dedupe the RDN↔broker-cash identity, not
-  sum both. Also relevant to S4 account seeding (multiple RDN accounts per member).
+- **✅ Net-worth RDN double-count — RESOLVED at S7 (by definition).** `portfolio_total` = holdings
+  **market value only** (§3.1); broker cash counted once via the mirroring BCA Tapres/RDN savings
+  balance in `cash_total`. Known RDN accounts (all Tommy's, still relevant to S4/S9 account seeding):
+  `4958…` = **Ajaib RDN** (= "Saldo RDN"), `4996…` = **Stockbit RDN** (= "Cash Investor"), `4959…`
+  = a dormant RDN (bal 1.33). No account-number matching needed for net worth (see the S7 decision).
 - **Edge case handled:** empty statement (`* TIDAK ADA TRANSAKSI PADA BULAN INI *`, zero mutasi)
   parses + reconciles (commit `c63c11a`) — found via the dormant `4959…` sample.
 - **Contract decision taken (portfolio shape):** chose a **separate `ParsedPortfolio`** type

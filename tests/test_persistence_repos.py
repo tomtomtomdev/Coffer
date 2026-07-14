@@ -232,6 +232,35 @@ def test_statement_round_trip_and_dedup_lookups(session: Session) -> None:
     assert repo.list_by_account(aid) == [stmt]
 
 
+def test_statement_closing_balance_round_trips_exact(session: Session) -> None:
+    # The per-statement net-worth value (SPEC §3.1) must survive as an exact Decimal.
+    hid = _seed_household(session)
+    mid = _seed_member(session, hid)
+    aid = _seed_account(session, mid)
+    repo = SqlStatementRepo(session)
+    stmt = repo.add(
+        Statement(
+            account_id=aid,
+            period_start=datetime.date(2026, 6, 1),
+            period_end=datetime.date(2026, 6, 30),
+            file_hash="cb" + "a" * 62,
+            content_hash="cb" + "b" * 38,
+            uploaded_via=UploadedVia.WEB,
+            uploaded_at=_TS,
+            parser_version="bca_tahapan@1",
+            is_encrypted=True,
+            closing_balance=Decimal("1271334.69"),
+        )
+    )
+    assert stmt.id is not None
+    got = repo.get(stmt.id)
+    assert got is not None
+    assert got.closing_balance == Decimal("1271334.69")
+    assert isinstance(got.closing_balance, Decimal)
+    # A statement with no balance persists None (nullable column).
+    assert repo.list_by_account(aid)[0].closing_balance == Decimal("1271334.69")
+
+
 def test_transaction_round_trip_preserves_decimal(session: Session) -> None:
     hid = _seed_household(session)
     mid = _seed_member(session, hid)

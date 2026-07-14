@@ -90,6 +90,9 @@ class StatementRow(Base):
     uploaded_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
     parser_version: Mapped[str] = mapped_column(String(50))
     is_encrypted: Mapped[bool] = mapped_column(Boolean)
+    # The account's net-worth value as of this statement (SPEC §3.1 carry-forward);
+    # nullable for a statement that carries no balance. See recompute.py for semantics.
+    closing_balance: Mapped[Decimal | None] = mapped_column(MONEY)
     # The ORIGINAL (still-encrypted) PDF is retained here; plaintext never on disk.
     encrypted_file_path: Mapped[str | None] = mapped_column(Text)
 

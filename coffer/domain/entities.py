@@ -85,6 +85,12 @@ class Statement:
     uploaded_at: datetime.datetime
     parser_version: str
     is_encrypted: bool
+    # The account's net-worth value as of this statement (SPEC §3.1 carry-forward).
+    #   savings:   SALDO AKHIR;  credit card: Tagihan Baru (liability magnitude);
+    #   portfolio: Σ holdings market value (broker cash is counted once via the
+    #              mirroring RDN savings account — never added here, see recompute).
+    # Populated by the persist stage (S9); None only for a statement with no balance.
+    closing_balance: Decimal | None = None
     encrypted_file_path: str | None = None
     uploaded_by_member_id: int | None = None
     id: int | None = None

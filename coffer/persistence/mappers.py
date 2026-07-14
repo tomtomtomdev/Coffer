@@ -130,6 +130,7 @@ def statement_to_row(entity: Statement) -> StatementRow:
         uploaded_at=entity.uploaded_at,
         parser_version=entity.parser_version,
         is_encrypted=entity.is_encrypted,
+        closing_balance=entity.closing_balance,
         encrypted_file_path=entity.encrypted_file_path,
     )
 
@@ -147,6 +148,7 @@ def statement_to_domain(row: StatementRow) -> Statement:
         uploaded_at=row.uploaded_at,
         parser_version=row.parser_version,
         is_encrypted=row.is_encrypted,
+        closing_balance=row.closing_balance,
         encrypted_file_path=row.encrypted_file_path,
     )
 
