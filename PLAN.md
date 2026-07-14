@@ -70,11 +70,14 @@ budgets/goals, notifications, multi-currency.
   green (ruff · format · mypy --strict · lint-imports · **92 pytest**). CI gained a Postgres service.
 - **Depends on:** S0.
 
-### S5 · Dedup ⬜
+### S5 · Dedup ✅
 - Three layers: file hash (reject), content hash (`content_hash_fields()`), txn `dedup_key`
-  (skip-and-log per row). 
-- **Test:** exact re-upload rejected; non-byte-identical re-export caught by content hash;
-  overlapping-period statements dedup at row level without failing the batch.
+  (skip-and-log per row). Pure repo-driven stage (`coffer/ingestion/dedup.py`) returning a
+  `DedupResult`; also dedups within a batch (unique `dedup_key`). `account_id` is an argument
+  (resolution is S9). Works for `ParsedStatement` and `ParsedPortfolio`.
+- **Done:** exact re-upload rejected; non-byte-identical re-export caught by content hash;
+  overlapping-period statements dedup at row level without failing the batch; intra-batch
+  identical rows deduped; portfolio path. 12 tests; full gate green (**104 pytest**).
 - **Depends on:** S1, S4.
 
 ### S6 · Categorization + learned rules ⬜

@@ -3,9 +3,40 @@
 > Persistent memory across cold sessions. Read this first. Update it last.
 > Format: what's done, what's in progress, what's next, and any live decisions/blockers.
 
-_Last updated: 2026-07-13_
+_Last updated: 2026-07-14_
 
-## Done (this session) ✅ — S4 persistence
+## Done (this session) ✅ — S5 dedup
+- **S5 — dedup stage** (`coffer/ingestion/dedup.py`). The three SPEC §4 layers as one pure,
+  repo-driven stage returning a routing decision (mirrors S3's `validate` shape):
+  - **Layer 1 — file hash** (`file_hash`, SHA-256 of raw bytes) → `DUPLICATE_FILE`: exact
+    re-upload rejected outright, contributes no rows.
+  - **Layer 2 — content hash** (`content_hash`, SHA-256 of the parsed object's own
+    `content_hash_fields()`) → `DUPLICATE_CONTENT`: catches a non-byte-identical re-export.
+    Works for both `ParsedStatement` and `ParsedPortfolio` (each supplies its own fields).
+  - **Layer 3 — `transaction_dedup_key`** (SHA-256 of `account_id,date,description,debit,credit`;
+    amounts as `str(Decimal)`, same canonical form as `content_hash_fields`) → per-row
+    skip-and-log. Overlapping-period statements dedup at row level and the batch is **never**
+    failed. Also dedups **within** one batch (the `dedup_key` column is UNIQUE, so identical
+    intra-batch rows would break the persist).
+  - Returns `DedupResult(outcome, file_hash, content_hash, new_transactions, duplicate_transaction_count)`;
+    each `new_transactions` item is a `KeyedTransaction` carrying the `dedup_key` computed once
+    here so the persist stage never recomputes it. `file_hash`/`content_hash` always returned
+    (even on a dup) so S9 can stamp the `Statement` without recomputing.
+  - **Clean Architecture:** depends only on the domain repo **Protocols** (`StatementRepo`/
+    `TransactionRepo`) + `coffer.parsers` types — dependency points inward; import-linter KEPT.
+  - **`account_id` is an argument** — account resolution (and the "needs account confirmation"
+    outcome) is S9 orchestration, not dedup's job.
+  - **Tests (12, `tests/test_dedup.py`):** hash stability/sensitivity; file-hash reject;
+    content-hash re-export; file-hash precedence; new-statement all-rows-keyed; overlapping-period
+    row dedup without failing the batch; intra-batch identical-row dedup; portfolio content-hash +
+    dividend-row dedup. Pure in-memory fakes satisfy the repo Protocols (no Postgres needed).
+  - Full gate green: ruff · ruff-format · mypy --strict · lint-imports · **104 pytest**
+    (against a throwaway `postgres:16`).
+  - **Next:** S6 (categorization + learned rules; depends on S4+S5) or S7 (recompute; depends
+    on S4). S9 will map `DedupResult` → the upload-response counts (new / duplicates skipped),
+    alongside the S3 `ValidationResult` → (rejected / needs manual review).
+
+## Done (prev session) ✅ — S4 persistence
 - **S4 — persistence layer** (SQLAlchemy 2.0 + Alembic + Postgres). All 11 SPEC §2 tables.
   - **Domain layer now non-empty:** `coffer/domain/{enums,entities,repositories}.py` — pure
     value objects + repository **Protocols**. Depends on nothing; import-linter still KEPT.
