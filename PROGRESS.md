@@ -5,7 +5,59 @@
 
 _Last updated: 2026-07-14_
 
-## Done (this session) ✅ — S7 net-worth snapshot recompute
+## Done (this session) ✅ — S8 spend + cash-flow read models
+- **S8 — spend + cash-flow read models** (`coffer/domain/read_models.py`). Pure, repo-driven
+  **query-side** use-cases for SPEC §3.3 (routine spend) + §3.5 (income / cash flow / savings).
+  - **Decision — placement is `domain`, NOT `ingestion`.** Unlike validate/dedup/categorize/
+    recompute (ingest pipeline stages, materialized on write), these are computed **on read**
+    for the dashboard — there is no spend snapshot table in §2 (cf. `networth_snapshot`, which
+    recompute writes on ingest). CLAUDE.md defines `ingestion` as exactly those 5 stages and
+    `domain` as "use-case logic … depends on nothing"; a read model that reads only domain
+    entities through the domain repo Protocols is domain use-case logic. First domain module
+    that takes repo Protocols as args (textbook interactor) — import-linter KEPT (intra-domain).
+  - **`routine_spend_estimate(txns, cats, *, window_months=6)`** (§3.3):
+    - **Headline** = median of monthly **totals** of non-annual routine debits over the last
+      ≤6 months of routine data; **+ amortized annual** on top (annual item's monthly-equiv =
+      Σ its debits in the **latest month it appears** ÷ 12 — models one payment/year, avoids
+      window-scaling a once-a-year cost). `estimate = base_median + annual_amortized`.
+    - **Per-category breakdown** (`CategoryMedian`): monthly cats = median of their monthly
+      totals over **observation months** (months the cat appears); annual cats = the amortized
+      monthly-equiv. Deliberately does **not** sum to the headline (SPEC §3.3 note).
+    - **Anomaly flags** (`AnomalyFlag`): txn `> 2 ×` its category's trailing median, guarded by
+      `≥3` observations **and** `median ≥ ANOMALY_MEDIAN_FLOOR` (Rp 50k) — annual cats fail the
+      ≥3 guard so their big single payment is never flagged.
+    - **Cold start**: `< 3` months of routine data → `estimate=None`, `insufficient_data=True`
+      (no misleading number), empty breakdown/anomalies.
+  - **`cash_flow_summary(txns, cats, *, window_months=6)`** (§3.5): per calendar month
+    (attributed by **txn date**), `income` = credits typed `income`; `spend` = debits typed
+    `routine|discretionary|one_off`; `cash_flow = income − spend`; `savings_rate =
+    (income−spend)/income` or **`None` when income is 0** (div-by-zero guard). Headline savings
+    rate = aggregate `(Σincome−Σspend)/Σincome` over the trailing window. `transfer` /
+    `investment_move` excluded (intra-household nets out via its `transfer` type).
+  - **Decision — spend excludes uncategorized.** Only the 3 spend types count; `category_id=None`
+    rows are pending a one-time review tag and are **not guessed** into a number (§3.3 "always
+    visible, always correctable") — figures firm up as the queue is worked. Documented so the
+    numbers are auditable.
+  - **`compute_routine_spend` / `compute_cash_flow`** — repo-driven wrappers: gather all
+    household transactions per account (`TransactionRepo.list_by_account`, mirroring recompute's
+    load — no new repo method / no migration), fetch categories once, delegate to the pure core.
+  - **Money is `Decimal` throughout** — exact `_median` (averages the two middle values), `/12`
+    and `/income` on `Decimal`, no float anywhere.
+  - **Tests (15, `tests/test_read_models.py`):** median-vs-sum-of-medians; even-count median;
+    annual amortization; cold start; uncategorized/non-routine excluded; anomaly positive +
+    floor-guard + observations-guard + sparse-no-div0; cash-flow income−spend + savings rate;
+    savings-rate div-by-zero; date-attribution + month sort; both repo wrappers aggregate across
+    accounts; empty household. Pure in-memory fakes over the domain Protocols (no Postgres).
+  - Full gate green: ruff · ruff-format · mypy --strict (47 files) · lint-imports (KEPT) ·
+    **164 pytest** (15 new) · alembic check **no drift** (no schema change this slice).
+  - **Next:** Phase C interfaces. **S9 (ingestion API)** is the critical-path unblocker now that
+    S2–S7 are done; it orchestrates decrypt→parse→validate→dedup→persist→recompute and populates
+    `statement.closing_balance` per family (see S7 note below). The S8 read models feed the
+    **S13 Belanja** (routine estimate + breakdown + review queue) and **S14 Arus Kas** (cash-flow
+    bars + savings-rate line) dashboards. **v1 tuning note:** `ANOMALY_MEDIAN_FLOOR` (Rp 50k) and
+    the 3–6 month window are documented constants — revisit against real data once S9 lands.
+
+## Done (prev session) ✅ — S7 net-worth snapshot recompute
 - **S7 — recompute** (`coffer/ingestion/recompute.py`). Pure, repo-driven stage (mirrors
   S3/S5/S6): reads through the domain repo Protocols only, tested with in-memory fakes.
   - **`compute_snapshot(...)`** — one grid point's net worth by **carry-forward** (SPEC

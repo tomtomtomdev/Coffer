@@ -101,11 +101,18 @@ budgets/goals, notifications, multi-currency.
   concurrent ingests don't corrupt the snapshot.
 - **Depends on:** S4.
 
-### S8 · Spend + cash-flow read models ⬜
-- Routine estimate = median of monthly totals + amortized annual; per-category medians;
-  anomaly flag with ≥3-obs + floor guards; cold-start < 3 months. Income / cash flow / savings rate.
-- **Test:** median-of-totals ≠ sum-of-category-medians (both correct); annual item amortizes;
-  sparse category doesn't divide-by-zero; <3 months → no estimate.
+### S8 · Spend + cash-flow read models ✅
+- `coffer/domain/read_models.py` (pure, query-side use-cases — read on-demand, NOT
+  materialized/on-ingest, so they live in `domain`, not `ingestion`). `routine_spend_estimate`
+  (median-of-monthly-totals + amortized annual on top; per-category median breakdown; anomaly
+  flags guarded by ≥3 obs + median floor; cold-start <3 months → estimate `None`) and
+  `cash_flow_summary` (monthly income − spend, savings rate with div-by-zero guard, headline
+  aggregate over the window). Repo-driven wrappers `compute_routine_spend` / `compute_cash_flow`
+  gather household transactions per account (mirrors recompute's load).
+- **Done:** median-of-totals ≠ sum-of-category-medians (both correct); annual amortizes; sparse
+  category → no div-by-zero + not flagged; <3 months → no estimate; transfers/investment_moves/
+  income/uncategorized excluded from spend; attributed by txn date. 15 tests; full gate green
+  (**164 pytest**; alembic check no drift — no schema change).
 - **Depends on:** S4, S6.
 
 ---
