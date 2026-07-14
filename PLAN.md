@@ -80,14 +80,18 @@ budgets/goals, notifications, multi-currency.
   identical rows deduped; portfolio path. 12 tests; full gate green (**104 pytest**).
 - **Depends on:** S1, S4.
 
-### S6 · Categorization + learned rules ⬜
-- Regex `category` rules; `learned_rule` engine matching **structured fields** (`counterparty_acct`
-  primary, amount guarded); precedence parser → learned → regex → uncategorized; `category_source`
-  stamped; `override` handling with rule-refinement.
-- **Intra-household transfer detection:** counterparty resolves to another member's account →
-  auto-`transfer`, netted at household level (SPEC §3.3).
-- **Test:** learned rule by recipient acct auto-classifies future txns; amount-only rule requires
-  confirmation; intra-household transfer nets out; override refines rather than duplicates.
+### S6 · Categorization + learned rules ✅
+- `coffer/ingestion/categorize.py`: pure `classify` (precedence structural/intra-household →
+  learned_rule → regex → uncategorized) + repo-driven `categorize` wrapper; `build_learned_rule`
+  (acct-key safe, amount-key needs explicit confirm); `retag` (manual override deactivates the
+  learned rule that mis-fired — refinement, not fighting); `seed_categories` (§3.3 + Q4 set).
+- **Done:** learned rule by recipient acct auto-classifies; amount-only rule requires
+  confirmation; intra-household transfer → seeded transfer category (beats learned rule); retag
+  refines rather than duplicating. 23 tests; full gate green (**127 pytest**).
+- **Decisions:** regex + structural assignments both stamp `category_source=parser` (kept §2's
+  4-value enum; §3.3's regex tier has no distinct source); intra-household acct match is exact
+  (mask normalization deferred to S9 seeding). `category_source` stamped; hit_count bump is the
+  caller's (S9) job via `matched_rule_id`.
 - **Depends on:** S4, S5.
 
 ### S7 · Net-worth snapshot recompute ⬜

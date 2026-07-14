@@ -5,7 +5,59 @@
 
 _Last updated: 2026-07-14_
 
-## Done (this session) ✅ — S5 dedup
+## Done (this session) ✅ — S6 categorization + learned rules
+- **S6 — categorization + learned-rule engine** (`coffer/ingestion/categorize.py`). Pure,
+  repo-driven ingest-time classifier (mirrors S3/S5 shape) + the learned-rule lifecycle.
+  - **`classify(txn, *, household_accounts, categories, active_rules) -> Categorization`** —
+    SPEC §3.3 precedence, highest first:
+    1. **structural / intra-household transfer** — `counterparty_acct` resolves to a household
+       account → the seeded `transfer` category; `source=parser`. A hard fact, so it's the top
+       tier and **beats a learned rule**. Missing seed transfer category → `ValueError` (setup
+       error, refuse to guess — cf. `validate.py`).
+    2. **learned rule** — active `LearnedRule` on **structured** fields: recipient acct (strong
+       key) first, then amount (weak, within `match_amount_tolerance`). `source=learned_rule`;
+       `matched_rule_id` returned so the caller bumps `hit_count`. Never matches on description.
+    3. **regex** — first household `category.match_pattern` (case-insensitive `re.search`) that
+       hits the description; `source=parser`. Sentinel `@…` patterns are skipped (identity
+       markers, not regexes).
+    4. **uncategorized** → `(None, None)`, queued for a one-time human tag.
+  - **`categorize(...)`** — thin repo-driven wrapper (fetches accounts/categories/active rules
+    once via the domain Protocols); S9 fetches once per batch.
+  - **`build_learned_rule(...)`** — `RuleKey.COUNTERPARTY_ACCT` (safe, needs a recipient acct,
+    no confirmation) vs `RuleKey.AMOUNT` (amount-only → **requires `confirm_amount_only=True`**,
+    else `ValueError` — amounts collide across unrelated spend, SPEC §3.3).
+  - **`retag(...)`** — a manual tag records an `Override`; if the prior assignment came from a
+    learned rule, that rule is **deactivated** (refinement over fighting), else override only.
+    Timestamps injected (`now=`) — no clock dependency, deterministic.
+  - **`seed_categories(household_id)`** — the day-one regex rule set (SPEC §3.3 seed + Q4:
+    transport/BBM/tol/groceries/food-delivery/utilities/BPJS/KPR/IPL/pharmacy/subscriptions +
+    annual STNK/asuransi/sekolah), the `KARTU KREDIT/PL` transfer, and the intra-household
+    sentinel category. Unpersisted (`id=None`); S9/onboarding persists → assigns ids.
+  - **Decision — category_source §2↔§3.3 reconciliation:** §2's enum has 4 values
+    (`parser|learned_rule|manual|onboarding`) but §3.3's precedence names a distinct *regex*
+    tier with no source value. Kept the authoritative 4-value enum; **both** structural and
+    regex assignments stamp `parser` (for UI/audit they're the same: "system-set on ingest,
+    correctable" vs learned/manual). No enum/migration change. Flag if distinct regex
+    provenance is wanted later (migration-free — sources stored as strings).
+  - **Decision — intra-household acct match is exact** (whitespace-trimmed). Masked-vs-full
+    account-number normalization needs the real seeded formats → deferred to S9 account seeding
+    (didn't invent a masking scheme). Engine + precedence are what S6 owns.
+  - **Clean Architecture:** ingestion → domain (entities/enums/repos) + parsers only; import
+    linter KEPT.
+  - **Tests (23, `tests/test_categorize.py`):** regex/case-insensitive/uncategorized/sentinel;
+    learned-rule acct + amount(±tolerance) + acct-beats-amount + learned-beats-regex; intra-
+    household detected + beats-learned + missing-seed-raises + non-member-not-intra; repo
+    wrapper (active-only); rule build (acct no-confirm / amount needs-confirm / acct needs
+    counterparty); retag deactivates-learned vs override-only; seed coverage. Pure in-memory
+    fakes satisfy the repo Protocols (no Postgres).
+  - Full gate green: ruff · ruff-format · mypy --strict · lint-imports · **127 pytest**
+    (23 new; against a throwaway `postgres:16`).
+  - **Next:** S7 (net-worth snapshot recompute; depends on S4 — carry-forward grid + RDN↔broker
+    double-count) or S8 (spend/cash-flow read models; depends on S4+S6). S9 will call
+    `categorize` per deduped row before persist, stamping `category_id`/`category_source`, and
+    bump `hit_count` on `matched_rule_id`.
+
+## Done (prev session) ✅ — S5 dedup
 - **S5 — dedup stage** (`coffer/ingestion/dedup.py`). The three SPEC §4 layers as one pure,
   repo-driven stage returning a routing decision (mirrors S3's `validate` shape):
   - **Layer 1 — file hash** (`file_hash`, SHA-256 of raw bytes) → `DUPLICATE_FILE`: exact
