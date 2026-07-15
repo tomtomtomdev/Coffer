@@ -20,7 +20,7 @@ import datetime
 from decimal import Decimal
 
 from coffer.domain.entities import Account, Category, Transaction
-from coffer.domain.enums import AccountType, Cadence, CategoryType
+from coffer.domain.enums import AccountType, Cadence, CategorySource, CategoryType
 from coffer.domain.read_models import (
     ANOMALY_MEDIAN_FLOOR,
     CashFlowSummary,
@@ -116,6 +116,17 @@ class FakeTransactionRepo:
         raise NotImplementedError
 
     def by_dedup_key(self, dedup_key: str) -> Transaction | None:
+        raise NotImplementedError
+
+    def set_category(
+        self,
+        transaction_id: int,
+        *,
+        category_id: int,
+        source: CategorySource,
+        edited_by: int | None,
+        edited_at: datetime.datetime,
+    ) -> None:
         raise NotImplementedError
 
 

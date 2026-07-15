@@ -6,6 +6,7 @@ import { ErrorCard, LoadingCard } from "./components/Status";
 import { monthLong } from "./lib/format";
 import { useRingkasan } from "./lib/useRingkasan";
 import { TABS, type ViewId } from "./nav";
+import { Belanja } from "./views/Belanja";
 import { Placeholder } from "./views/Placeholder";
 import { Portofolio } from "./views/Portofolio";
 import { Ringkasan } from "./views/Ringkasan";
@@ -42,7 +43,8 @@ export function App() {
             <Ringkasan data={state.data} onNavigate={select} />
           ))}
         {view === "portfolio" && <Portofolio householdId={HOUSEHOLD_ID} />}
-        {(view === "spend" || view === "cashflow") && <Placeholder title={labelOf(view)} />}
+        {view === "spend" && <Belanja householdId={HOUSEHOLD_ID} />}
+        {view === "cashflow" && <Placeholder title={labelOf(view)} />}
       </main>
       <BottomNav view={view} onSelect={select} />
     </div>

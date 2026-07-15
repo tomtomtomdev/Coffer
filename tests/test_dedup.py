@@ -16,7 +16,7 @@ import datetime
 from decimal import Decimal
 
 from coffer.domain.entities import Statement, Transaction
-from coffer.domain.enums import UploadedVia
+from coffer.domain.enums import CategorySource, UploadedVia
 from coffer.ingestion.dedup import (
     DedupOutcome,
     content_hash,
@@ -101,6 +101,17 @@ class FakeTransactionRepo:
         raise NotImplementedError
 
     def list_by_account(self, account_id: int) -> list[Transaction]:
+        raise NotImplementedError
+
+    def set_category(
+        self,
+        transaction_id: int,
+        *,
+        category_id: int,
+        source: CategorySource,
+        edited_by: int | None,
+        edited_at: datetime.datetime,
+    ) -> None:
         raise NotImplementedError
 
 

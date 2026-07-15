@@ -3,9 +3,90 @@
 > Persistent memory across cold sessions. Read this first. Update it last.
 > Format: what's done, what's in progress, what's next, and any live decisions/blockers.
 
-_Last updated: 2026-07-15_
+_Last updated: 2026-07-16_
 
-## Done (this session) ✅ — S12 Portofolio dashboard (§3.2)
+## Done (this session) ✅ — S13 Belanja dashboard (§3.3)
+The spend screen — the first slice with a **write path** (Tag/Ubah). Same read pattern as
+S11/S12 (DashboardReader method + endpoint + view), plus a repo-driven re-tag use-case and
+the SPA's first mutation. All spend math stays in Python; the web is presentation only.
+
+- **Read model — `build_belanja` / `compute_belanja`** (`coffer/domain/read_models.py`), pure +
+  repo-driven like S8/S11. Assembles the whole screen: the S8 `routine_spend_estimate`
+  (headline base median + amortized annual + per-category `CategoryMedian` breakdown), a
+  **`monthly_series`** sparkline, **enriched anomalies** (`SpendAnomaly` = `AnomalyFlag` + txn
+  description + category label), the **review queue** (`ReviewItem`), and the **full category
+  list** (`CategoryOption`) for the picker.
+  - **Preparatory add to the S8 estimate:** `RoutineSpendEstimate.monthly_series:
+    list[MonthlyRoutinePoint]` — the window months' non-annual routine totals, i.e. the exact
+    bars the headline median is taken over. S8's 14 tests unaffected (they assert fields;
+    cold-start returns `[]`).
+  - **Review queue composition (decision):** **all** uncategorized rows float to the top (they
+    need a tag), then the most-recent categorized rows fill up to `review_limit` (40) — so a
+    wrong auto-assignment stays visible/correctable per §3.3 ("always visible"). Shows *all*
+    sources (Parser / Auto·pelajaran / Manual / Perlu-tag badges), matching the frozen design,
+    not just uncategorized. Pagination is a follow-up if it grows.
+- **Read endpoint** — `GET /api/dashboard/belanja/{household_id}` (`dashboard_routes.py` +
+  `BelanjaResponse`/nested schemas in `dashboard_schemas.py` + `DashboardReader.belanja`).
+  Money as strings (the invariant), enums as `.value`.
+- **Write path — the Tag/Ubah action.** `recategorize_transaction` use-case
+  (`coffer/ingestion/recategorize.py`), a repo-driven orchestration over the **S6 pure
+  functions** — mirrors `pipeline`/`telegram`. Records an `Override`, stamps the txn `manual`
+  with the edit audit (`set_category`), **deactivates a mis-fired learned rule** ("refinement
+  over fighting"), and optionally **generalizes** into a new rule. Resolves household via
+  account→member; validates the category belongs to it.
+  - **Refactor:** extracted a public **`match_learned_rule(*, counterparty_acct, amount,
+    active_rules)`** from S6's private `_match_learned_rule` (behavior identical — S6's 23
+    tests green) so the re-tag path can reconstruct which rule assigned a txn's current
+    category and deactivate it.
+  - **Widened domain repo Protocols** (like S9's `bump_hit_count`): `TransactionRepo.set_category`
+    + `LearnedRuleRepo.set_active`, both concrete via `UPDATE …` in `SqlTransactionRepo`/
+    `SqlLearnedRuleRepo`. Updated the 6 in-memory fakes typed to those Protocols
+    (test_dedup/pipeline/categorize/ringkasan/read_models).
+  - **No recompute:** a category change moves read-on-demand spend/flow figures (§3.3/§3.5),
+    never balance-based net worth (§3.1) — so no snapshot rebuild is triggered.
+  - **Endpoint** — `POST /api/transactions/{transaction_id}/category` (`transactions_routes.py`
+    + `transactions.py` `TransactionCategorizer` adapter + `transactions_schemas.py` +
+    `get_transaction_categorizer` DI, **commit-on-success** unit-of-work). Error mapping:
+    not-found → 404, amount-only-without-confirm → 400, bad `amount_tolerance` → 422. B008
+    per-file-ignored (FastAPI DI idiom).
+- **Frontend — `web/src/views/Belanja.tsx`** (self-fetching like Portofolio): routine hero
+  (base median as the big figure, `+ amortisasi = total/bln` explainer) + **bar sparkline**
+  (rose when a month exceeds the headline estimate — the design's fixed 26 jt threshold made
+  **data-driven**), per-category median rows (cadence tag + green/orange progress by cadence),
+  anomaly card, and the **review queue** with source badges + inline **Tag/Ubah editor**
+  (category `<select>` + a "terapkan ke akun ini" generalize checkbox shown only when a
+  `counterparty_acct` is present → the safe key).
+  - **First SPA mutation:** `postJson` + `recategorizeTransaction` in `api/client.ts`;
+    `useBelanja(householdId, reloadKey)` re-fetches after a save; the view **retains prior data
+    during reload** (no full-screen flash). New pure `lib/spend.ts` (sparkline shaping + badge/
+    cadence label maps) + `spend.test.ts`. New CSS for sparkline/cadence-tags/source-badges/
+    review rows/re-tag editor per MEASUREMENTS §Spend. Wired into the `spend` tab (`App.tsx`).
+  - **Decision — amount-only generalization is backend-supported but not offered in the review
+    UI** (it needs the guarded confirmation); the UI only offers the safe `counterparty_acct`
+    rule. Follow-up if wanted.
+- **Tests (+27 py, +9 ts):** `test_belanja.py` (10 — monthly series/assembly/queue ordering+limit/
+  enriched anomalies/cold-start/empty/repo wrapper), `test_recategorize.py` (7 — override+manual/
+  learned-rule deactivation/counterparty+amount generalize/confirm guard/not-found/foreign-cat),
+  `test_api_belanja.py` (8 — read string-money shape + cold-start + write forward/404/404/400/422),
+  `test_belanja_integration.py` (2 — read path + full re-tag persistence over Postgres). Web:
+  `spend.test.ts` (7) + 2 new `App.test.tsx` (Belanja render + Tag→categorize endpoint).
+- **Full gate green:** ruff · ruff-format · mypy --strict (84 files) · lint-imports KEPT ·
+  **262 pytest** · alembic no-drift (verified on a fresh DB — **no schema change**, all columns
+  pre-existed: txn `category_id`/`category_source`/`edited_by`/`edited_at`, `learned_rule.active`,
+  `override` table) ‖ **web:** tsc · **31 vitest** · vite build.
+- **⚠ Follow-ups:** (a) §3.4 bill due-date card still deferred (S11 note — placement is Tommy's
+  call). (b) Anomaly `reason` on the wire is the S6 English placeholder ("possibly non-routine");
+  the UI renders a Bahasa reason from `category_median` instead — fold a Bahasa reason into the
+  read model if a machine-readable code is wanted. (c) Review-queue pagination + amount-only
+  generalization UI. (d) Prod static serving still unwired (S11/S15 ops). (e) Recharts bundle
+  unchanged (the sparkline is plain CSS, not Recharts).
+- **Committed to `main`** (`S13: …`), not pushed.
+- **Next:** **S14 Arus Kas (§3.5)** — income-vs-spend grouped bars + savings-rate line (SVG per
+  MEASUREMENTS §Cash Flow) + source/type breakdown lists. Backend read model already exists
+  (`cash_flow_summary` / `compute_cash_flow`, S8) — S14 needs a `DashboardReader.arus_kas` method
+  + endpoint + `ArusKas.tsx` view, mirroring this slice's read half (no write path).
+
+## Done (prev session) ✅ — S12 Portofolio dashboard (§3.2)
 Same read-model + endpoint + view pattern as S11; second dashboard tab now live.
 - **Reader generalized** — `RingkasanReader` → **`DashboardReader`** (`coffer/api/dashboard.py`)
   with `.ringkasan` + `.portofolio`; DI renamed `get_ringkasan_reader` → **`get_dashboard_reader`**
@@ -41,7 +122,7 @@ Same read-model + endpoint + view pattern as S11; second dashboard tab now live.
   a `DashboardReader` method + endpoint + view; S13 also needs a review-queue read (uncategorized +
   learned/regex-tagged rows) and Tag/Ubah actions (write path → S6 `retag`/`build_learned_rule`).
 
-## Done (this session) ✅ — S11 Ringkasan dashboard (§3.1)
+## Done (prev session) ✅ — S11 Ringkasan dashboard (§3.1)
 First frontend slice + its read API. Split cleanly so the backend is framework-agnostic:
 **all dashboard math stays in Python; the frontend is pure presentation** (id-ID formatting +
 charts only), honoring CLAUDE.md ("business logic never in UI", "id-ID formatting only at the edge").

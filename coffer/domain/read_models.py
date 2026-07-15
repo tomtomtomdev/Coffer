@@ -54,8 +54,8 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from coffer.domain.entities import Category, Statement, Transaction
-from coffer.domain.enums import AccountType, Cadence, CategoryType
+from coffer.domain.entities import Account, Category, Statement, Transaction
+from coffer.domain.enums import AccountType, Cadence, CategorySource, CategoryType
 from coffer.domain.networth import Bucket, bucket_of, compute_snapshot
 from coffer.domain.repositories import (
     AccountRepo,
@@ -113,12 +113,23 @@ class AnomalyFlag:
 
 
 @dataclass(frozen=True)
+class MonthlyRoutinePoint:
+    """One bar of the routine-spend sparkline (SPEC §3.3 display): a window month and its
+    total non-annual routine debits — the same per-month totals the headline median is
+    taken over (annual items are amortized separately, not shown as a monthly bar)."""
+
+    month: date
+    total: Decimal
+
+
+@dataclass(frozen=True)
 class RoutineSpendEstimate:
     """The §3.3 routine-spend read model.
 
     ``estimate is None`` (with ``insufficient_data``) on cold start. Otherwise
     ``estimate == base_median_monthly + annual_amortized_monthly``. The breakdown is
-    NOT expected to sum to the headline (see module docstring).
+    NOT expected to sum to the headline (see module docstring). ``monthly_series`` is the
+    sparkline data — the window months' non-annual routine totals, in month order.
     """
 
     estimate: Decimal | None
@@ -129,6 +140,7 @@ class RoutineSpendEstimate:
     annual_amortized_monthly: Decimal
     category_breakdown: list[CategoryMedian]
     anomalies: list[AnomalyFlag]
+    monthly_series: list[MonthlyRoutinePoint]
 
 
 @dataclass(frozen=True)
@@ -224,6 +236,7 @@ def routine_spend_estimate(
             annual_amortized_monthly=Decimal("0"),
             category_breakdown=[],
             anomalies=[],
+            monthly_series=[],
         )
 
     window = routine_months[-window_months:]
@@ -298,6 +311,190 @@ def routine_spend_estimate(
         annual_amortized_monthly=annual_amortized,
         category_breakdown=breakdown,
         anomalies=anomalies,
+        monthly_series=[MonthlyRoutinePoint(m, non_annual_month_total[m]) for m in window],
+    )
+
+
+# ── §3.3 Belanja (spend screen) assembled read model ─────────────────────────────────
+REVIEW_LIMIT_DEFAULT = 40  # queue page size; all uncategorized are always kept (see below)
+
+
+@dataclass(frozen=True)
+class SpendAnomaly:
+    """An anomaly row for the Belanja screen — an ``AnomalyFlag`` enriched with the
+    transaction's description and its category label (so the UI needn't re-join)."""
+
+    transaction_id: int
+    category_id: int
+    category_label: str
+    description: str
+    amount: Decimal
+    category_median: Decimal
+    reason: str
+
+
+@dataclass(frozen=True)
+class ReviewItem:
+    """One row of the categorization review queue (SPEC §3.3 "always visible, always
+    correctable"). ``category_source is None`` ⇒ uncategorized (needs a first tag);
+    otherwise the source drives the badge and the row offers a re-tag. ``debit``/``credit``
+    are both carried (money as Decimal); the UI shows the non-zero side."""
+
+    transaction_id: int
+    date: date
+    description: str
+    debit: Decimal
+    credit: Decimal
+    counterparty_name: str | None
+    counterparty_acct: str | None
+    account_id: int
+    institution: str
+    account_number_masked: str
+    category_id: int | None
+    category_label: str | None
+    category_source: CategorySource | None
+    is_anomaly: bool
+
+
+@dataclass(frozen=True)
+class CategoryOption:
+    """A household category offered in the Tag/Ubah picker."""
+
+    id: int
+    label: str
+    type: CategoryType
+    cadence: Cadence
+
+
+@dataclass(frozen=True)
+class BelanjaView:
+    """The assembled §3.3 spend screen: the routine-spend estimate (headline + base
+    median + amortized annual + sparkline + per-category breakdown), enriched anomalies,
+    the review queue, and the full category list for the re-tag picker."""
+
+    estimate: Decimal | None
+    insufficient_data: bool
+    months_observed: int
+    window_months: int
+    base_median_monthly: Decimal
+    annual_amortized_monthly: Decimal
+    monthly_series: list[MonthlyRoutinePoint]
+    category_breakdown: list[CategoryMedian]
+    anomalies: list[SpendAnomaly]
+    review_queue: list[ReviewItem]
+    categories: list[CategoryOption]
+
+
+def build_belanja(
+    transactions: Sequence[Transaction],
+    categories: Sequence[Category],
+    accounts: Sequence[Account],
+    *,
+    window_months: int = WINDOW_MONTHS_DEFAULT,
+    review_limit: int = REVIEW_LIMIT_DEFAULT,
+) -> BelanjaView:
+    """Assemble the SPEC §3.3 Belanja view from already-fetched domain rows (pure).
+
+    The review queue floats **all** uncategorized rows to the top (they need a tag),
+    then fills the remaining ``review_limit`` slots with the most-recent categorized rows
+    (most recent first) so a wrong auto-assignment stays visible and correctable.
+    """
+    est = routine_spend_estimate(transactions, categories, window_months=window_months)
+    label_of = {c.id: c.label for c in categories if c.id is not None}
+    desc_of = {t.id: t.description for t in transactions if t.id is not None}
+    anomaly_ids = {a.transaction_id for a in est.anomalies}
+
+    anomalies = [
+        SpendAnomaly(
+            transaction_id=a.transaction_id,
+            category_id=a.category_id,
+            category_label=label_of.get(a.category_id, ""),
+            description=desc_of.get(a.transaction_id, ""),
+            amount=a.amount,
+            category_median=a.category_median,
+            reason=a.reason,
+        )
+        for a in est.anomalies
+    ]
+
+    acct_of = {a.id: a for a in accounts if a.id is not None}
+    items = [
+        ReviewItem(
+            transaction_id=t.id,
+            date=t.date,
+            description=t.description,
+            debit=t.debit,
+            credit=t.credit,
+            counterparty_name=t.counterparty_name,
+            counterparty_acct=t.counterparty_acct,
+            account_id=t.account_id,
+            institution=(a.institution if a else ""),
+            account_number_masked=(a.account_number_masked if a else ""),
+            category_id=t.category_id,
+            category_label=(label_of.get(t.category_id) if t.category_id is not None else None),
+            category_source=t.category_source,
+            is_anomaly=t.id in anomaly_ids,
+        )
+        for t in transactions
+        if t.id is not None
+        for a in [acct_of.get(t.account_id)]
+    ]
+    uncategorized = sorted(
+        (i for i in items if i.category_id is None),
+        key=lambda i: (i.date, i.transaction_id),
+        reverse=True,
+    )
+    categorized = sorted(
+        (i for i in items if i.category_id is not None),
+        key=lambda i: (i.date, i.transaction_id),
+        reverse=True,
+    )
+    remaining = max(0, review_limit - len(uncategorized))
+    review_queue = uncategorized + categorized[:remaining]
+
+    options = [
+        CategoryOption(id=c.id, label=c.label, type=c.type, cadence=c.cadence)
+        for c in categories
+        if c.id is not None
+    ]
+
+    return BelanjaView(
+        estimate=est.estimate,
+        insufficient_data=est.insufficient_data,
+        months_observed=est.months_observed,
+        window_months=est.window_months,
+        base_median_monthly=est.base_median_monthly,
+        annual_amortized_monthly=est.annual_amortized_monthly,
+        monthly_series=est.monthly_series,
+        category_breakdown=est.category_breakdown,
+        anomalies=anomalies,
+        review_queue=review_queue,
+        categories=options,
+    )
+
+
+def compute_belanja(
+    *,
+    household_id: int,
+    accounts: AccountRepo,
+    transactions: TransactionRepo,
+    categories: CategoryRepo,
+    window_months: int = WINDOW_MONTHS_DEFAULT,
+    review_limit: int = REVIEW_LIMIT_DEFAULT,
+) -> BelanjaView:
+    """Repo-driven §3.3 Belanja view — fetches the household's accounts, transactions and
+    categories once (mirrors ``compute_ringkasan``'s load)."""
+    accts = accounts.list_by_household(household_id)
+    txns: list[Transaction] = []
+    for a in accts:
+        if a.id is not None:
+            txns.extend(transactions.list_by_account(a.id))
+    return build_belanja(
+        txns,
+        categories.list_by_household(household_id),
+        accts,
+        window_months=window_months,
+        review_limit=review_limit,
     )
 
 

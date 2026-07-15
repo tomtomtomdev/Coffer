@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from coffer.api.dashboard_routes import router as dashboard_router
 from coffer.api.routes import router
 from coffer.api.telegram_routes import router as telegram_router
+from coffer.api.transactions_routes import router as transactions_router
 
 
 def create_app() -> FastAPI:
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
     app.include_router(router)
     app.include_router(telegram_router)
     app.include_router(dashboard_router)
+    app.include_router(transactions_router)
     return app
 
 

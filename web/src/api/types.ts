@@ -89,3 +89,84 @@ export interface PortofolioResponse {
   as_of_dates: string[];
   mixed_as_of: boolean;
 }
+
+// ── §3.3 Belanja ─────────────────────────────────────────────────────────────────────
+export type CategorySource = "parser" | "learned_rule" | "manual" | "onboarding";
+
+export interface MonthlyRoutinePoint {
+  month: string; // ISO date (month-first)
+  total: string;
+}
+
+export interface CategoryMedian {
+  category_id: number;
+  label: string;
+  median_monthly: string;
+  observation_count: number;
+  cadence: string; // "monthly" | "annual" | "irregular"
+}
+
+export interface SpendAnomaly {
+  transaction_id: number;
+  category_id: number;
+  category_label: string;
+  description: string;
+  amount: string;
+  category_median: string;
+  reason: string;
+}
+
+export interface ReviewItem {
+  transaction_id: number;
+  date: string;
+  description: string;
+  debit: string;
+  credit: string;
+  counterparty_name: string | null;
+  counterparty_acct: string | null;
+  account_id: number;
+  institution: string;
+  account_number_masked: string;
+  category_id: number | null;
+  category_label: string | null;
+  category_source: CategorySource | null; // null ⇒ uncategorized ("Perlu tag")
+  is_anomaly: boolean;
+}
+
+export interface CategoryOption {
+  id: number;
+  label: string;
+  type: string; // CategoryType value
+  cadence: string; // Cadence value
+}
+
+export interface BelanjaResponse {
+  estimate: string | null; // null on cold start (<3 months)
+  insufficient_data: boolean;
+  months_observed: number;
+  window_months: number;
+  base_median_monthly: string;
+  annual_amortized_monthly: string;
+  monthly_series: MonthlyRoutinePoint[];
+  category_breakdown: CategoryMedian[];
+  anomalies: SpendAnomaly[];
+  review_queue: ReviewItem[];
+  categories: CategoryOption[];
+}
+
+// The Tag/Ubah write — the only mutation in the dashboard so far.
+export interface RecategorizeRequest {
+  category_id: number;
+  member_id?: number | null;
+  generalize?: "counterparty_acct" | "amount" | null;
+  confirm_amount_only?: boolean;
+  amount_tolerance?: string | null;
+}
+
+export interface RecategorizeResponse {
+  transaction_id: number;
+  category_id: number;
+  category_source: string; // always "manual"
+  deactivated_rule_id: number | null;
+  created_rule_id: number | null;
+}

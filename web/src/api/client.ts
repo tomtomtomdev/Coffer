@@ -1,9 +1,28 @@
-import type { PortofolioResponse, RingkasanResponse } from "./types";
+import type {
+  BelanjaResponse,
+  PortofolioResponse,
+  RecategorizeRequest,
+  RecategorizeResponse,
+  RingkasanResponse,
+} from "./types";
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Gagal memuat (${res.status})`);
+  }
+  return (await res.json()) as T;
+}
+
+async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok) {
+    throw new Error(`Gagal menyimpan (${res.status})`);
   }
   return (await res.json()) as T;
 }
@@ -22,4 +41,17 @@ export function fetchPortofolio(
   signal?: AbortSignal,
 ): Promise<PortofolioResponse> {
   return getJson(`/api/dashboard/portofolio/${householdId}`, signal);
+}
+
+/** §3.3 Belanja payload. */
+export function fetchBelanja(householdId: number, signal?: AbortSignal): Promise<BelanjaResponse> {
+  return getJson(`/api/dashboard/belanja/${householdId}`, signal);
+}
+
+/** Tag/Ubah — apply a manual category to a transaction (SPEC §3.3). */
+export function recategorizeTransaction(
+  transactionId: number,
+  body: RecategorizeRequest,
+): Promise<RecategorizeResponse> {
+  return postJson(`/api/transactions/${transactionId}/category`, body);
 }

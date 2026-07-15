@@ -47,6 +47,7 @@ select = ["E", "F", "I", "UP", "B", "W"]
 "coffer/api/routes.py" = ["B008"]
 "coffer/api/telegram_routes.py" = ["B008"]
 "coffer/api/dashboard_routes.py" = ["B008"]
+"coffer/api/transactions_routes.py" = ["B008"]
 
 # ── Types (strict, per CLAUDE.md Definition of done) ────────────────────────────
 [tool.mypy]

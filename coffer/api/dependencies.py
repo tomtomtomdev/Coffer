@@ -25,6 +25,7 @@ from coffer.api.adapters import FilesystemStatementArchive, PdfPlumberReader
 from coffer.api.dashboard import DashboardReader
 from coffer.api.parsing import PARSERS
 from coffer.api.telegram_adapters import HttpxTelegramClient, InMemoryPendingUploadStore
+from coffer.api.transactions import TransactionCategorizer
 from coffer.ingestion.pipeline import IngestStatement
 from coffer.ingestion.recompute import InProcessRecomputeLock
 from coffer.ingestion.telegram import TelegramIngest
@@ -150,6 +151,13 @@ def get_dashboard_reader() -> Iterator[DashboardReader]:
     closed with no commit (nothing is written by the dashboard endpoints)."""
     with _session_factory()() as session:
         yield DashboardReader(session)
+
+
+def get_transaction_categorizer() -> Iterator[TransactionCategorizer]:
+    """Per-request Tag/Ubah writer, same commit-on-success unit-of-work as web upload."""
+    with _session_factory()() as session:
+        yield TransactionCategorizer(session, _now)
+        session.commit()
 
 
 def get_webhook_secret() -> str:

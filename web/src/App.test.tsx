@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { PortofolioResponse, RingkasanResponse } from "./api/types";
+import { recategorizeTransaction } from "./api/client";
+import type { BelanjaResponse, PortofolioResponse, RingkasanResponse } from "./api/types";
 
-const { SAMPLE, PORTFOLIO } = vi.hoisted(() => {
+const { SAMPLE, PORTFOLIO, BELANJA } = vi.hoisted(() => {
   const sample: RingkasanResponse = {
     as_of: "2026-06-30",
     net_worth: "943000000",
@@ -99,12 +100,62 @@ const { SAMPLE, PORTFOLIO } = vi.hoisted(() => {
     as_of_dates: ["2026-06-30"],
     mixed_as_of: false,
   };
-  return { SAMPLE: sample, PORTFOLIO: portfolio };
+  const belanja: BelanjaResponse = {
+    estimate: "25670000",
+    insufficient_data: false,
+    months_observed: 6,
+    window_months: 6,
+    base_median_monthly: "23800000",
+    annual_amortized_monthly: "1870000",
+    monthly_series: [
+      { month: "2026-01-01", total: "22000000" },
+      { month: "2026-05-01", total: "30000000" },
+      { month: "2026-06-01", total: "24000000" },
+    ],
+    category_breakdown: [
+      {
+        category_id: 1,
+        label: "Cicilan KPR",
+        median_monthly: "8500000",
+        observation_count: 6,
+        cadence: "monthly",
+      },
+    ],
+    anomalies: [],
+    review_queue: [
+      {
+        transaction_id: 77,
+        date: "2026-06-09",
+        description: "TOKO XYZ",
+        debit: "250000",
+        credit: "0",
+        counterparty_name: null,
+        counterparty_acct: "123456",
+        account_id: 2,
+        institution: "bca",
+        account_number_masked: "****5678",
+        category_id: null,
+        category_label: null,
+        category_source: null,
+        is_anomaly: false,
+      },
+    ],
+    categories: [{ id: 1, label: "Cicilan KPR", type: "routine", cadence: "monthly" }],
+  };
+  return { SAMPLE: sample, PORTFOLIO: portfolio, BELANJA: belanja };
 });
 
 vi.mock("./api/client", () => ({
   fetchRingkasan: vi.fn(async () => SAMPLE),
   fetchPortofolio: vi.fn(async () => PORTFOLIO),
+  fetchBelanja: vi.fn(async () => BELANJA),
+  recategorizeTransaction: vi.fn(async () => ({
+    transaction_id: 77,
+    category_id: 1,
+    category_source: "manual",
+    deactivated_rule_id: null,
+    created_rule_id: null,
+  })),
 }));
 
 import { App } from "./App";
@@ -136,7 +187,7 @@ describe("App / Ringkasan", () => {
     render(<App />);
     await screen.findByRole("heading", { level: 1 });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Belanja" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Arus Kas" })[0]!);
     expect(screen.getByText(/slice berikutnya/)).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Ringkasan" })[0]!);
@@ -163,5 +214,37 @@ describe("App / Ringkasan", () => {
     expect(await screen.findByText("BBCA")).toBeInTheDocument();
     expect(screen.getByText("Nilai Pasar Gabungan")).toBeInTheDocument();
     expect(screen.getByText("Total Rumah Tangga")).toBeInTheDocument();
+  });
+
+  it("shows the routine-spend hero, category medians, and review queue on Belanja", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { level: 1 });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Belanja" })[0]!);
+
+    // Hero big figure = base median; explainer shows the amortized total.
+    expect(await screen.findByText("Rp 23,8 jt")).toBeInTheDocument();
+    expect(screen.getByText("Estimasi Belanja Rutin")).toBeInTheDocument();
+    expect(screen.getByText("Cicilan KPR")).toBeInTheDocument();
+    expect(screen.getByText("TOKO XYZ")).toBeInTheDocument();
+    expect(screen.getByText("Perlu tag")).toBeInTheDocument();
+  });
+
+  it("tags a review-queue transaction via the categorize endpoint", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { level: 1 });
+    fireEvent.click(screen.getAllByRole("button", { name: "Belanja" })[0]!);
+    await screen.findByText("TOKO XYZ");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tag →" }));
+    expect(screen.getByLabelText("Pilih kategori")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() =>
+      expect(vi.mocked(recategorizeTransaction)).toHaveBeenCalledWith(77, {
+        category_id: 1,
+        generalize: null,
+      }),
+    );
   });
 });

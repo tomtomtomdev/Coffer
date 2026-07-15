@@ -29,6 +29,7 @@ from coffer.domain.entities import (
     Statement,
     Transaction,
 )
+from coffer.domain.enums import CategorySource
 
 
 class HouseholdRepo(Protocol):
@@ -72,6 +73,16 @@ class TransactionRepo(Protocol):
     def get(self, transaction_id: int) -> Transaction | None: ...
     def by_dedup_key(self, dedup_key: str) -> Transaction | None: ...  # dedup layer 3
     def list_by_account(self, account_id: int) -> list[Transaction]: ...
+    # A manual re-tag (SPEC §3.3) stamps a new category + provenance + edit audit on a row.
+    def set_category(
+        self,
+        transaction_id: int,
+        *,
+        category_id: int,
+        source: CategorySource,
+        edited_by: int | None,
+        edited_at: datetime.datetime,
+    ) -> None: ...
 
 
 class CategoryRepo(Protocol):
@@ -92,6 +103,8 @@ class LearnedRuleRepo(Protocol):
     # A learned rule that fires on ingest gets its usage counted (SPEC §3.3 — surfaces
     # which rules earn their keep). The bump is the ingest orchestrator's job (S9).
     def bump_hit_count(self, rule_id: int, *, by: int = 1) -> None: ...
+    # Re-tagging a learned-rule result deactivates it — refinement over fighting (§3.3).
+    def set_active(self, rule_id: int, *, active: bool) -> None: ...
 
 
 class HoldingRepo(Protocol):

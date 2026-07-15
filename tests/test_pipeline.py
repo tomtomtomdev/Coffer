@@ -164,6 +164,24 @@ class _FakeTransactionRepo:
     def list_by_account(self, account_id: int) -> list[Transaction]:
         return [t for t in self._by_id.values() if t.account_id == account_id]
 
+    def set_category(
+        self,
+        transaction_id: int,
+        *,
+        category_id: int,
+        source: CategorySource,
+        edited_by: int | None,
+        edited_at: datetime.datetime,
+    ) -> None:
+        t = self._by_id[transaction_id]
+        self._by_id[transaction_id] = replace(
+            t,
+            category_id=category_id,
+            category_source=source,
+            edited_by=edited_by,
+            edited_at=edited_at,
+        )
+
 
 class _FakeCategoryRepo:
     def __init__(self) -> None:
@@ -203,6 +221,9 @@ class _FakeLearnedRuleRepo:
     def bump_hit_count(self, rule_id: int, *, by: int = 1) -> None:
         r = self._by_id[rule_id]
         self._by_id[rule_id] = replace(r, hit_count=r.hit_count + by)
+
+    def set_active(self, rule_id: int, *, active: bool) -> None:
+        self._by_id[rule_id] = replace(self._by_id[rule_id], active=active)
 
 
 class _FakeHoldingRepo:

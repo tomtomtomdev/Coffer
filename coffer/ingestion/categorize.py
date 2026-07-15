@@ -115,17 +115,20 @@ def _rule_amount_matches(rule: LearnedRule, amount: Decimal) -> bool:
     return abs(amount - rule.match_amount) <= tolerance
 
 
-def _match_learned_rule(
-    txn: ParsedTransaction, active_rules: list[LearnedRule]
+def match_learned_rule(
+    *,
+    counterparty_acct: str | None,
+    amount: Decimal,
+    active_rules: list[LearnedRule],
 ) -> LearnedRule | None:
-    """Recipient-acct rules first (strong key), then amount-only rules (weak key)."""
-    amount = _amount(txn.debit, txn.credit)
-
-    if txn.counterparty_acct:
+    """Which active rule (if any) fires for these structured fields — recipient-acct
+    rules first (strong key), then amount-only rules (weak key). Public so the re-tag
+    path (S13) can reconstruct which rule assigned a transaction's current category."""
+    if counterparty_acct:
         for rule in active_rules:
             if (
                 rule.match_counterparty_acct is not None
-                and _acct_matches(txn.counterparty_acct, rule.match_counterparty_acct)
+                and _acct_matches(counterparty_acct, rule.match_counterparty_acct)
                 and _rule_amount_matches(rule, amount)
             ):
                 return rule
@@ -136,6 +139,16 @@ def _match_learned_rule(
                 return rule
 
     return None
+
+
+def _match_learned_rule(
+    txn: ParsedTransaction, active_rules: list[LearnedRule]
+) -> LearnedRule | None:
+    return match_learned_rule(
+        counterparty_acct=txn.counterparty_acct,
+        amount=_amount(txn.debit, txn.credit),
+        active_rules=active_rules,
+    )
 
 
 def _match_regex_category(txn: ParsedTransaction, categories: list[Category]) -> Category | None:

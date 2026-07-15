@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from coffer.api.dashboard import DashboardReader
-from coffer.api.dashboard_schemas import PortofolioResponse, RingkasanResponse
+from coffer.api.dashboard_schemas import BelanjaResponse, PortofolioResponse, RingkasanResponse
 from coffer.api.dependencies import get_dashboard_reader
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -32,3 +32,13 @@ async def get_portofolio(
 ) -> PortofolioResponse:
     """The §3.2 consolidated holdings across brokers, with the mixed-as-of-date guard."""
     return PortofolioResponse.from_view(reader.portofolio(household_id))
+
+
+@router.get("/belanja/{household_id}", response_model=BelanjaResponse)
+async def get_belanja(
+    household_id: int,
+    reader: DashboardReader = Depends(get_dashboard_reader),
+) -> BelanjaResponse:
+    """The §3.3 spend screen: routine estimate + sparkline + per-category medians +
+    anomalies + review queue + the category list for the Tag/Ubah picker."""
+    return BelanjaResponse.from_view(reader.belanja(household_id))

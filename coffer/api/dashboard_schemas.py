@@ -11,7 +11,7 @@ from datetime import date
 
 from pydantic import BaseModel
 
-from coffer.domain.read_models import PortfolioView, RingkasanView
+from coffer.domain.read_models import BelanjaView, PortfolioView, RingkasanView
 
 
 class GridPointSchema(BaseModel):
@@ -130,6 +130,133 @@ class RingkasanResponse(BaseModel):
                     else str(view.kpis.monthly_cash_flow)
                 ),
             ),
+        )
+
+
+class MonthlyRoutinePointSchema(BaseModel):
+    month: date
+    total: str
+
+
+class CategoryMedianSchema(BaseModel):
+    category_id: int
+    label: str
+    median_monthly: str
+    observation_count: int
+    cadence: str  # Cadence value: "monthly" | "annual" | "irregular"
+
+
+class SpendAnomalySchema(BaseModel):
+    transaction_id: int
+    category_id: int
+    category_label: str
+    description: str
+    amount: str
+    category_median: str
+    reason: str
+
+
+class ReviewItemSchema(BaseModel):
+    transaction_id: int
+    date: date
+    description: str
+    debit: str
+    credit: str
+    counterparty_name: str | None
+    counterparty_acct: str | None
+    account_id: int
+    institution: str
+    account_number_masked: str
+    category_id: int | None
+    category_label: str | None
+    category_source: str | None  # CategorySource value; null ⇒ uncategorized ("Perlu tag")
+    is_anomaly: bool
+
+
+class CategoryOptionSchema(BaseModel):
+    id: int
+    label: str
+    type: str  # CategoryType value
+    cadence: str  # Cadence value
+
+
+class BelanjaResponse(BaseModel):
+    """The §3.3 spend screen payload (money as strings; charts/format at the edge)."""
+
+    estimate: str | None  # null on cold start (<3 months)
+    insufficient_data: bool
+    months_observed: int
+    window_months: int
+    base_median_monthly: str
+    annual_amortized_monthly: str
+    monthly_series: list[MonthlyRoutinePointSchema]
+    category_breakdown: list[CategoryMedianSchema]
+    anomalies: list[SpendAnomalySchema]
+    review_queue: list[ReviewItemSchema]
+    categories: list[CategoryOptionSchema]
+
+    @classmethod
+    def from_view(cls, view: BelanjaView) -> BelanjaResponse:
+        return cls(
+            estimate=(None if view.estimate is None else str(view.estimate)),
+            insufficient_data=view.insufficient_data,
+            months_observed=view.months_observed,
+            window_months=view.window_months,
+            base_median_monthly=str(view.base_median_monthly),
+            annual_amortized_monthly=str(view.annual_amortized_monthly),
+            monthly_series=[
+                MonthlyRoutinePointSchema(month=p.month, total=str(p.total))
+                for p in view.monthly_series
+            ],
+            category_breakdown=[
+                CategoryMedianSchema(
+                    category_id=cm.category_id,
+                    label=cm.label,
+                    median_monthly=str(cm.median_monthly),
+                    observation_count=cm.observation_count,
+                    cadence=cm.cadence.value,
+                )
+                for cm in view.category_breakdown
+            ],
+            anomalies=[
+                SpendAnomalySchema(
+                    transaction_id=a.transaction_id,
+                    category_id=a.category_id,
+                    category_label=a.category_label,
+                    description=a.description,
+                    amount=str(a.amount),
+                    category_median=str(a.category_median),
+                    reason=a.reason,
+                )
+                for a in view.anomalies
+            ],
+            review_queue=[
+                ReviewItemSchema(
+                    transaction_id=i.transaction_id,
+                    date=i.date,
+                    description=i.description,
+                    debit=str(i.debit),
+                    credit=str(i.credit),
+                    counterparty_name=i.counterparty_name,
+                    counterparty_acct=i.counterparty_acct,
+                    account_id=i.account_id,
+                    institution=i.institution,
+                    account_number_masked=i.account_number_masked,
+                    category_id=i.category_id,
+                    category_label=i.category_label,
+                    category_source=(
+                        None if i.category_source is None else i.category_source.value
+                    ),
+                    is_anomaly=i.is_anomaly,
+                )
+                for i in view.review_queue
+            ],
+            categories=[
+                CategoryOptionSchema(
+                    id=c.id, label=c.label, type=c.type.value, cadence=c.cadence.value
+                )
+                for c in view.categories
+            ],
         )
 
 

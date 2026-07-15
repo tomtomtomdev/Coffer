@@ -31,7 +31,7 @@ from coffer.domain.entities import (
     Statement,
     Transaction,
 )
-from coffer.domain.enums import AccountType, Cadence, CategoryType, UploadedVia
+from coffer.domain.enums import AccountType, Cadence, CategorySource, CategoryType, UploadedVia
 from coffer.domain.networth import Bucket
 from coffer.domain.read_models import (
     RingkasanView,
@@ -203,6 +203,17 @@ class FakeTransactionRepo:
         raise NotImplementedError
 
     def by_dedup_key(self, dedup_key: str) -> Transaction | None:
+        raise NotImplementedError
+
+    def set_category(
+        self,
+        transaction_id: int,
+        *,
+        category_id: int,
+        source: CategorySource,
+        edited_by: int | None,
+        edited_at: datetime.datetime,
+    ) -> None:
         raise NotImplementedError
 
 

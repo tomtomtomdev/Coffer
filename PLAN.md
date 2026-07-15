@@ -188,9 +188,25 @@ budgets/goals, notifications, multi-currency.
   "don't invent"). Follow-up: add detection + a `holding.corp_action` note.
 - **Depends on:** S4 (holdings), S1 (portfolio parsers).
 
-### S13 · Dashboard — Belanja (§3.3) ⬜
-- Routine hero + 6-month sparkline, per-category medians with cadence tags, review queue with
-  source badges + Tag/Ubah actions wired to S6 categorization.
+### S13 · Dashboard — Belanja (§3.3) ✅
+- **Backend read:** `build_belanja`/`compute_belanja` (`coffer/domain/read_models.py`) assemble
+  the routine estimate (headline base median + amortized annual + per-category medians), a
+  `monthly_series` sparkline (added to the S8 `RoutineSpendEstimate`), enriched anomalies, the
+  review queue (all uncategorized first, then recent categorized, capped 40) and the category
+  list for the picker. `GET /api/dashboard/belanja/{household_id}` (money as strings).
+- **Backend write (Tag/Ubah):** `recategorize_transaction` (`coffer/ingestion/recategorize.py`)
+  over the S6 pure fns — records an override, stamps the txn `manual`, deactivates a mis-fired
+  learned rule, optionally generalizes on `counterparty_acct`. Public `match_learned_rule`
+  extracted from S6. Widened Protocols `TransactionRepo.set_category` + `LearnedRuleRepo.set_active`.
+  `POST /api/transactions/{id}/category` (404/400/422 mapping; commit-on-success). No recompute.
+- **Frontend:** `web/src/views/Belanja.tsx` — routine hero + CSS bar sparkline (rose when a month
+  exceeds the estimate) + per-category median bars (cadence-coloured) + anomaly card + review
+  queue with source badges and an inline Tag/Ubah editor. First SPA mutation (`postJson`,
+  `useBelanja` reload key, retain-prior-data-during-reload). New `lib/spend.ts` + spend CSS.
+- **Done:** 262 pytest (read model + write use-case + `TestClient` + Postgres integration) + 31
+  vitest; full gate green; alembic no drift (no schema change — all columns pre-existed).
+- **Deferred:** amount-only generalization in the review UI (backend supports it); review-queue
+  pagination; a machine-readable anomaly reason (UI renders Bahasa from `category_median`).
 - **Depends on:** S6, S8.
 
 ### S14 · Dashboard — Arus Kas (§3.5) ⬜

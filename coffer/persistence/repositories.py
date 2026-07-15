@@ -28,6 +28,7 @@ from coffer.domain.entities import (
     Statement,
     Transaction,
 )
+from coffer.domain.enums import CategorySource
 from coffer.persistence import mappers
 from coffer.persistence.crypto import FieldCipher
 from coffer.persistence.models import (
@@ -212,6 +213,28 @@ class SqlTransactionRepo:
         )
         return [mappers.transaction_to_domain(r) for r in rows]
 
+    def set_category(
+        self,
+        transaction_id: int,
+        *,
+        category_id: int,
+        source: CategorySource,
+        edited_by: int | None,
+        edited_at: datetime.datetime,
+    ) -> None:
+        """Apply a manual re-tag (SPEC §3.3): set the category + its provenance and stamp
+        the edit audit. ``source`` is stored as its string value (models keep enums as text)."""
+        self._session.execute(
+            update(TransactionRow)
+            .where(TransactionRow.id == transaction_id)
+            .values(
+                category_id=category_id,
+                category_source=source.value,
+                edited_by=edited_by,
+                edited_at=edited_at,
+            )
+        )
+
 
 class SqlCategoryRepo:
     def __init__(self, session: Session) -> None:
@@ -287,6 +310,12 @@ class SqlLearnedRuleRepo:
             update(LearnedRuleRow)
             .where(LearnedRuleRow.id == rule_id)
             .values(hit_count=LearnedRuleRow.hit_count + by)
+        )
+
+    def set_active(self, rule_id: int, *, active: bool) -> None:
+        """Activate/deactivate a rule — a re-tag deactivates the rule that mis-fired (§3.3)."""
+        self._session.execute(
+            update(LearnedRuleRow).where(LearnedRuleRow.id == rule_id).values(active=active)
         )
 
 
