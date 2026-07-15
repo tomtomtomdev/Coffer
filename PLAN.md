@@ -153,10 +153,22 @@ budgets/goals, notifications, multi-currency.
 - Public webhook via tunnel; dashboard/API stays on LAN/VPN (SPEC §5).
 - **Depends on:** S9.
 
-### S11 · Dashboard — Ringkasan (§3.1) ⬜
-- Net-worth hero + tide chart (Gabungan/Per-Anggota toggle), KPI row (deep-links),
-  Rincian Akun, **+ bill due-date card (§3.4 — its home; confirm placement first)**.
-- Match frozen design tokens exactly; Bahasa Indonesia; `id-ID` IDR formatting; real charting lib.
+### S11 · Dashboard — Ringkasan (§3.1) ✅ (bill-card §3.4 deferred)
+- **Backend read API** (framework-agnostic): `coffer/domain/read_models.py` gained
+  `compute_ringkasan` (household series from the materialized `networth_snapshot`; **per-member
+  series computed on read** via the shared carry-forward engine; delta; Rincian Akun; KPI row
+  reusing the S8 read models). Preparatory refactor: pure §3.1 primitives extracted to
+  `coffer/domain/networth.py`, `recompute.py` imports + re-exports them (no duplication, S7
+  tests unchanged). Route `GET /api/dashboard/ringkasan/{household_id}` (`coffer/api/dashboard*.py`)
+  — **money serialized as strings**, never floats.
+- **Frontend** (`web/` — React + Vite + TS + Recharts, Vitest): app shell (header, top/bottom
+  nav, month chip), Ringkasan view = net-worth hero + tide chart (Gabungan/Per-Anggota toggle) +
+  KPI row (deep-links) + Rincian Akun; other tabs stubbed. Frozen design tokens; Bahasa Indonesia;
+  `id-ID` formatting at the edge only. New CI `web` job (tsc + vitest + build).
+- **Done:** 227 pytest (unit + `TestClient` + Postgres integration) + 21 vitest, full gate green,
+  alembic no drift (no schema change).
+- **Deferred:** the **§3.4 bill due-date card** — its placement (Ringkasan card vs. 5th tab) is
+  Tommy's call and was unconfirmed; a clean insertion point is left in the Ringkasan view.
 - **Depends on:** S7, S8; design handoff.
 
 ### S12 · Dashboard — Portofolio (§3.2) ⬜
@@ -181,6 +193,9 @@ budgets/goals, notifications, multi-currency.
 
 ## Open items blocking specific slices (need Tommy)
 - **CIMB password scheme** → unblocks S2 end-to-end (SPEC §8). You unlocked the sample; the password + whether it changes monthly is all that's needed.
-- **§3.4 bill-aggregator placement** (card on Ringkasan vs. 5th tab) → confirm before S11.
+- **§3.4 bill-aggregator placement** (card on Ringkasan vs. 5th tab) → S11 shipped without it
+  (insertion point left on Ringkasan); confirm placement to add the bill due-date card.
+- **Frontend framework** — chosen by best-judgment while Tommy was away: **React + Vite + TS +
+  Recharts** (SPEC-recommended). Flag if SvelteKit is preferred (backend API is unaffected).
 - **Real samples**: BCA CC, BCA savings, Ajaib, Stockbit → unblock the remaining S1 parsers.
 - **CIMB edge cases**: a statement with cash advance / multi-card / multi-page → parser follow-up on S1.

@@ -1,0 +1,538 @@
+/*
+ * Coffer design tokens + layout — frozen hi-fi handoff (MEASUREMENTS.md).
+ * Colours, radii, type, shadow are authoritative; do not drift.
+ */
+:root {
+  --paper: #eaecf6;
+  --card: #ffffff;
+  --ink: #1c1d26;
+  --muted: #8a8fa3;
+  --faint: #b4b8c9;
+  --border: #edeef5;
+  --cardbd: #eef0f6;
+  --gridline: #eceef6;
+  --sh: 0 6px 22px rgba(28, 29, 60, 0.06);
+  --cash: #17b26a;
+  --green: #17b26a;
+  --port: #7c5cff;
+  --liab: #f04766;
+  --red: #f04766;
+  --orange: #f59e0b;
+  --display: "Plus Jakarta Sans", "Hanken Grotesk", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--display);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(78px + env(safe-area-inset-bottom));
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ── Card recipe ─────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--cardbd);
+  box-shadow: var(--sh);
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+.app {
+  min-height: 100vh;
+}
+
+.main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: fadeUp 0.4s ease;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Header (sticky) ─────────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(234, 236, 246, 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #edeef5;
+}
+
+.header__row {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatars {
+  display: flex;
+  align-items: center;
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.avatar--t {
+  background: var(--cash);
+}
+
+.avatar--p {
+  background: var(--port);
+  margin-left: -9px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.brand__mark {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.brand__sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.topnav {
+  margin: 0 auto; /* centre between brand (left) and month chip (right) */
+  background: #fff;
+  border: 1px solid #edeef5;
+  border-radius: 12px;
+  padding: 3px;
+  display: flex;
+  gap: 2px;
+}
+
+.topnav__tab {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.15s;
+}
+
+.topnav__tab--active {
+  background: var(--port);
+  color: #fff;
+}
+
+.monthchip {
+  background: #fff;
+  border: 1px solid #edeef5;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.monthchip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cash);
+}
+
+/* ── Bottom nav (mobile) ─────────────────────────────────────── */
+.botnav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid #edeef5;
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+}
+
+.botnav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
+
+.botnav__item--active {
+  color: var(--port);
+}
+
+.botnav__mark {
+  width: 20px;
+  height: 3px;
+  border-radius: 3px;
+  background: transparent;
+}
+
+.botnav__item--active .botnav__mark {
+  background: var(--port);
+}
+
+/* ── Hero card (net worth) ───────────────────────────────────── */
+.hero {
+  border-radius: 24px;
+  padding: 24px;
+}
+
+.hero__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.hero__figure {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(38px, 7.5vw, 56px);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  margin: 8px 0 0;
+}
+
+.hero__deltarow {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  font-weight: 600;
+  font-size: 14px;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+.pill--up {
+  color: var(--green);
+  background: #e3f7ee;
+}
+
+.pill--down {
+  color: var(--red);
+  background: #fdecef;
+}
+
+.hero__deltasub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hero__footnote {
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.5;
+  border-top: 1px dashed #edeef5;
+  padding-top: 12px;
+  margin-top: 14px;
+}
+
+/* Segmented toggle (Gabungan / Per Anggota) */
+.segmented {
+  background: var(--paper);
+  border: 1px solid #edeef5;
+  border-radius: 11px;
+  padding: 3px;
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.segmented__btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
+
+.segmented__btn--active {
+  background: #fff;
+  color: var(--ink);
+}
+
+/* ── Tide chart ──────────────────────────────────────────────── */
+.chartwrap {
+  margin-top: 18px;
+  min-height: 220px;
+}
+
+.legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legend__chip {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+.chart-empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+/* ── KPI row ─────────────────────────────────────────────────── */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.kpi {
+  border-radius: 20px;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--cardbd);
+  background: var(--card);
+  box-shadow: var(--sh);
+}
+
+.kpi__eyebrow {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kpi__figure {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 31px;
+  margin-top: 6px;
+}
+
+.kpi__figure--green {
+  color: var(--green);
+}
+
+.kpi__sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+/* ── Rincian Akun ────────────────────────────────────────────── */
+.section-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.rincian {
+  border-radius: 20px;
+  padding: 20px 22px;
+}
+
+.acctrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #edeef5;
+}
+
+.acctrow:last-child {
+  border-bottom: none;
+}
+
+.acctrow__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.dot--cash {
+  background: var(--cash);
+}
+
+.dot--portfolio {
+  background: var(--port);
+}
+
+.dot--liability {
+  background: var(--liab);
+}
+
+.acctrow__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.acctrow__sub {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.acctrow__right {
+  margin-left: auto;
+  text-align: right;
+}
+
+.acctrow__bal {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.acctrow__bal--neg {
+  color: var(--red);
+}
+
+.acctrow__asof {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  margin-top: 2px;
+}
+
+/* ── Placeholder (other tabs, pre-build) ─────────────────────── */
+.placeholder {
+  border-radius: 24px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.placeholder__title {
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.placeholder__sub {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .topnav {
+    display: none;
+  }
+  .monthchip {
+    margin-left: auto; /* no centre nav on mobile — push the chip to the right */
+  }
+  .botnav {
+    display: flex;
+  }
+  .header__row {
+    padding: 12px 16px;
+  }
+  .main {
+    padding: 18px 16px 40px;
+  }
+}
+
+@media (max-width: 720px) {
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .brand__sub {
+    display: none;
+  }
+}

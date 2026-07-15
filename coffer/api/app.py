@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from coffer.api.dashboard_routes import router as dashboard_router
 from coffer.api.routes import router
 from coffer.api.telegram_routes import router as telegram_router
 
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Coffer Ingestion API")
     app.include_router(router)
     app.include_router(telegram_router)
+    app.include_router(dashboard_router)
     return app
 
 

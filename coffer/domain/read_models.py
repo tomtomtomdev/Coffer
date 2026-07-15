@@ -54,9 +54,17 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from coffer.domain.entities import Category, Transaction
-from coffer.domain.enums import Cadence, CategoryType
-from coffer.domain.repositories import AccountRepo, CategoryRepo, TransactionRepo
+from coffer.domain.entities import Category, Statement, Transaction
+from coffer.domain.enums import AccountType, Cadence, CategoryType
+from coffer.domain.networth import Bucket, bucket_of, compute_snapshot
+from coffer.domain.repositories import (
+    AccountRepo,
+    CategoryRepo,
+    MemberRepo,
+    NetworthSnapshotRepo,
+    StatementRepo,
+    TransactionRepo,
+)
 
 # ── tunables (documented constants, not magic numbers) ──────────────────────────────
 WINDOW_MONTHS_DEFAULT = 6  # median-of-monthly-totals over the last 3–6 months (§3.3 step 3)
@@ -378,4 +386,215 @@ def compute_cash_flow(
         _household_transactions(household_id, accounts, transactions),
         categories.list_by_household(household_id),
         window_months=window_months,
+    )
+
+
+# ── §3.1 Ringkasan (net-worth overview) read model ────────────────────────────────────
+@dataclass(frozen=True)
+class NetworthGridPoint:
+    """One month-end grid point of the household net-worth series (SPEC §3.1)."""
+
+    grid_date: date
+    cash: Decimal
+    portfolio: Decimal
+    liability: Decimal
+    net_worth: Decimal
+
+
+@dataclass(frozen=True)
+class MemberSeriesPoint:
+    grid_date: date
+    net_worth: Decimal
+
+
+@dataclass(frozen=True)
+class MemberNetworth:
+    """A member's net-worth line for the "Per Anggota" toggle (computed on read)."""
+
+    member_id: int
+    member_name: str
+    points: list[MemberSeriesPoint]
+
+
+@dataclass(frozen=True)
+class AccountBalance:
+    """One Rincian Akun row: an account's latest reported balance + as-of date.
+
+    ``balance`` is the account's own most recent non-null ``closing_balance`` (its raw
+    magnitude — a credit card's is the positive Tagihan Baru); ``bucket`` tells the UI
+    edge how to render it (a ``LIABILITY`` shows negative / rose). ``as_of`` is that
+    statement's ``period_end`` — kept per-account so the mixed-as-of-date reality is
+    honest (§3.1) rather than pretending one household date.
+    """
+
+    account_id: int
+    member_id: int
+    institution: str
+    account_type: AccountType
+    account_number_masked: str
+    bucket: Bucket
+    balance: Decimal
+    as_of: date | None
+
+
+@dataclass(frozen=True)
+class NetworthDelta:
+    """Change in household net worth vs. the previous grid point (the hero delta pill).
+
+    ``pct`` is ``amount / |prior net worth|``; ``None`` when the prior month's net worth
+    was zero (div-by-zero guard — cf. the savings-rate guard in §3.5).
+    """
+
+    amount: Decimal
+    pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class RingkasanKpis:
+    """The overview KPI row (SPEC §3.1), lifted from the S8 read models.
+
+    ``routine_spend_monthly`` / ``savings_rate`` / ``monthly_cash_flow`` are ``None`` when
+    there is not enough data (cold start / zero income / no months) rather than a
+    misleading zero.
+    """
+
+    routine_spend_monthly: Decimal | None
+    routine_annual_amortized: Decimal
+    savings_rate: Decimal | None
+    monthly_cash_flow: Decimal | None
+
+
+@dataclass(frozen=True)
+class RingkasanView:
+    """The assembled §3.1 Ringkasan payload for the dashboard's overview screen."""
+
+    as_of: date | None
+    net_worth: Decimal
+    delta: NetworthDelta | None
+    household_series: list[NetworthGridPoint]
+    member_series: list[MemberNetworth]
+    accounts: list[AccountBalance]
+    kpis: RingkasanKpis
+
+
+def _latest_balance(statements: Sequence[Statement]) -> tuple[Decimal, date | None]:
+    """An account's most recent reported balance + that statement's ``period_end``.
+
+    ``statements`` is ``period_end``-ascending; the latest statement carrying a non-null
+    ``closing_balance`` wins (a ``None`` closing — e.g. an empty portfolio snapshot — is
+    not a balance data point). No such statement → ``(0, None)`` (account absent).
+    """
+    balance = Decimal("0")
+    as_of: date | None = None
+    for stmt in statements:
+        if stmt.closing_balance is not None:
+            balance = stmt.closing_balance
+            as_of = stmt.period_end
+    return balance, as_of
+
+
+def compute_ringkasan(
+    *,
+    household_id: int,
+    accounts: AccountRepo,
+    members: MemberRepo,
+    statements: StatementRepo,
+    transactions: TransactionRepo,
+    categories: CategoryRepo,
+    snapshots: NetworthSnapshotRepo,
+    window_months: int = WINDOW_MONTHS_DEFAULT,
+) -> RingkasanView:
+    """Assemble the SPEC §3.1 Ringkasan overview from the persisted read side.
+
+    The household series is read straight from the materialized ``networth_snapshot``
+    (S7 — the dashboard loads fast); the per-member series is computed **on read** (it is
+    not materialized) via the shared carry-forward engine over each member's accounts.
+    Everything else (delta, Rincian Akun, KPI row) is derived from the same fetched rows.
+    """
+    snapshot_rows = snapshots.list_by_household(household_id)
+    household_series = [
+        NetworthGridPoint(
+            grid_date=s.grid_date,
+            cash=s.cash_total,
+            portfolio=s.portfolio_total,
+            liability=s.credit_liability_total,
+            net_worth=s.net_worth,
+        )
+        for s in snapshot_rows
+    ]
+    as_of = household_series[-1].grid_date if household_series else None
+    net_worth = household_series[-1].net_worth if household_series else Decimal("0")
+
+    delta: NetworthDelta | None = None
+    if len(household_series) >= 2:
+        prior = household_series[-2].net_worth
+        amount = household_series[-1].net_worth - prior
+        delta = NetworthDelta(amount=amount, pct=(amount / abs(prior) if prior != 0 else None))
+
+    accts = accounts.list_by_household(household_id)
+    statements_by_account: dict[int, list[Statement]] = {
+        a.id: statements.list_by_account(a.id) for a in accts if a.id is not None
+    }
+
+    # Per-member series, aligned to the household grid, via on-read carry-forward.
+    grid_dates = [s.grid_date for s in snapshot_rows]
+    member_series: list[MemberNetworth] = []
+    for m in members.list_by_household(household_id):
+        if m.id is None:
+            continue
+        member_accounts = [a for a in accts if a.member_id == m.id]
+        points = [
+            MemberSeriesPoint(
+                grid_date=g,
+                net_worth=compute_snapshot(
+                    household_id=household_id,
+                    grid_date=g,
+                    accounts=member_accounts,
+                    statements_by_account=statements_by_account,
+                ).net_worth,
+            )
+            for g in grid_dates
+        ]
+        member_series.append(MemberNetworth(member_id=m.id, member_name=m.name, points=points))
+
+    # Rincian Akun: each account's own latest reported balance + as-of + net-worth bucket.
+    account_rows = [
+        AccountBalance(
+            account_id=a.id,
+            member_id=a.member_id,
+            institution=a.institution,
+            account_type=a.account_type,
+            account_number_masked=a.account_number_masked,
+            bucket=bucket_of(a.account_type),
+            balance=balance,
+            as_of=acct_as_of,
+        )
+        for a in accts
+        if a.id is not None
+        for balance, acct_as_of in [_latest_balance(statements_by_account[a.id])]
+    ]
+
+    # KPI row — reuse the S8 read models over the household's rows, fetched once.
+    household_txns: list[Transaction] = []
+    for a in accts:
+        if a.id is not None:
+            household_txns.extend(transactions.list_by_account(a.id))
+    cats = categories.list_by_household(household_id)
+    routine = routine_spend_estimate(household_txns, cats, window_months=window_months)
+    flow = cash_flow_summary(household_txns, cats, window_months=window_months)
+    kpis = RingkasanKpis(
+        routine_spend_monthly=routine.estimate,
+        routine_annual_amortized=routine.annual_amortized_monthly,
+        savings_rate=flow.headline_savings_rate,
+        monthly_cash_flow=(flow.months[-1].cash_flow if flow.months else None),
+    )
+
+    return RingkasanView(
+        as_of=as_of,
+        net_worth=net_worth,
+        delta=delta,
+        household_series=household_series,
+        member_series=member_series,
+        accounts=account_rows,
+        kpis=kpis,
     )

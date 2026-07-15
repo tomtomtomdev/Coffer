@@ -98,6 +98,23 @@ uv run pytest               # tests
 
 CI (GitHub Actions, `.github/workflows/ci.yml`) runs all of the above on every push.
 
+### Frontend (`web/` — dashboard UI)
+
+The dashboard is a React + Vite + TypeScript SPA (Recharts, Vitest) that consumes the
+read API. It lives at top-level `web/` (a JS SPA is not a Python import layer).
+
+```bash
+cd web
+npm install
+npm run test        # vitest
+npm run typecheck   # tsc --noEmit
+npm run build       # production bundle → web/dist
+npm run dev         # dev server on :5173, proxies /api → http://localhost:8000
+```
+
+Run the API alongside it: `uv run uvicorn coffer.api.app:app --reload` (LAN/VPN only, SPEC §5).
+Serving `web/dist` in production (FastAPI static mount or reverse proxy) is an ops follow-up.
+
 ## Development workflow
 
 Coffer is built in **vertical slices** (TDD: red → green → refactor), one at a time, in

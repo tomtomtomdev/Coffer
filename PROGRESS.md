@@ -3,9 +3,70 @@
 > Persistent memory across cold sessions. Read this first. Update it last.
 > Format: what's done, what's in progress, what's next, and any live decisions/blockers.
 
-_Last updated: 2026-07-14_
+_Last updated: 2026-07-15_
 
-## Done (this session) ✅ — S10 Telegram bot
+## Done (this session) ✅ — S11 Ringkasan dashboard (§3.1)
+First frontend slice + its read API. Split cleanly so the backend is framework-agnostic:
+**all dashboard math stays in Python; the frontend is pure presentation** (id-ID formatting +
+charts only), honoring CLAUDE.md ("business logic never in UI", "id-ID formatting only at the edge").
+
+- **Preparatory refactor — `coffer/domain/networth.py`.** The pure §3.1 primitives (month-end
+  grid, per-account carry-forward, `account_type`→bucket classification, `compute_snapshot`) were
+  extracted from `ingestion/recompute.py` into the domain, since the dashboard's **per-member**
+  series needs the same carry-forward and it's domain logic (like the S8 read models).
+  `recompute.py` now imports + **re-exports** them (`__all__`), so S7's tests and call-sites are
+  untouched — no duplication, one carry-forward implementation. Behavior-preserving (S7's 28 tests
+  green through it).
+- **`compute_ringkasan` read model** (`coffer/domain/read_models.py`) — repo-driven, pure,
+  in-memory-fake-tested like S8. Assembles: **household series** straight from the materialized
+  `networth_snapshot` (S7 — fast); **per-member series computed on read** (not materialized —
+  `compute_snapshot` over each member's accounts, cheap for 2 people); **delta** vs. prior month
+  (pct `None` when prior net worth is 0 — div-by-zero guard); **Rincian Akun** (each account's own
+  latest non-null `closing_balance` + as-of + bucket — per-account as-of keeps the mixed-date
+  reality honest); **KPI row** reusing S8 (`routine_spend_estimate` + `cash_flow_summary`), each
+  `None` on cold start rather than a fake zero.
+- **Read endpoint** — `GET /api/dashboard/ringkasan/{household_id}` (`coffer/api/dashboard_routes.py`
+  + `dashboard_schemas.py` + `dashboard.py` reader adapter + `get_ringkasan_reader` DI, read-only
+  session, no commit). **Decision — money is serialized as strings, never floats** (Pydantic/FastAPI
+  jsonable_encoder would coerce Decimal→float; the "never float" invariant must survive the wire).
+  The web edge parses + formats id-ID. B008 per-file-ignored (FastAPI DI idiom).
+- **Frontend — `web/` (top-level, NOT `coffer/web/`).** Decision: a JS SPA isn't a Python import
+  layer; placing it at repo top-level with `node_modules`/`dist` gitignored needs **zero** changes
+  to the Python gate (ruff respects gitignore; mypy/import-linter/pytest are scoped to `coffer`/
+  `tests`). The empty `coffer/web/__init__.py` stays as the import-linter layer placeholder. Stack:
+  **React 18 + Vite 5 + TypeScript (strict) + Recharts + Vitest** (chosen by best-judgment while
+  Tommy was away — SPEC-recommended; flag if SvelteKit preferred, backend unaffected).
+  - App shell (sticky header w/ avatar stack + centered top-nav + month chip; fixed bottom-nav
+    ≤860px; view switching + scroll-to-top), Ringkasan view = HeroCard (figure + delta pill +
+    Gabungan/Per-Anggota toggle + tide chart + carry-forward footnote) + KpiRow (3 deep-link cards)
+    + RincianAkun; Portofolio/Belanja/Arus Kas stubbed as placeholders.
+  - **Tide chart** = Recharts `ComposedChart`: household = stacked portfolio+cash areas (violet/green
+    gradients) + near-black net line; member = one line per member. Frozen design tokens in
+    `src/index.css` (from `MEASUREMENTS.md`).
+  - Pure, tested logic split out: `lib/format.ts` (id-ID `Intl` — `fmtIDR`/`fmtShort`/`fmtJuta`/
+    `fmtPct` + month names; **NBSP normalized to plain space**) and `lib/chart.ts` (payload→Recharts
+    rows). `api/{types,client}.ts` mirror the wire schema (money as strings). New CI `web` job.
+- **Tests (+12 py, +21 ts):** `test_ringkasan.py` (9 — household series/delta/zero-prior guard/
+  member carry-forward/Rincian latest-non-null+bucket/KPIs/cold-start/empty), `test_api_ringkasan.py`
+  (2 — string-money shape + empty), `test_ringkasan_integration.py` (1 — full read path over real
+  Postgres via `RingkasanReader`); vitest `format.test.ts` (12) + `chart.test.ts` (6) + `App.test.tsx`
+  (3 — renders headline/KPIs/accounts, tab switch, toggle; API mocked).
+- **Full gate green:** ruff · ruff-format · mypy --strict (73 files) · lint-imports KEPT ·
+  **227 pytest** · alembic check **no drift** (no schema change) ‖ **web:** tsc --noEmit · **21 vitest**
+  · vite build.
+- **⚠ Follow-ups:** (a) **§3.4 bill due-date card deferred** — placement is Tommy's call (Ringkasan
+  card recommended vs. 5th tab); clean insertion point left in `views/Ringkasan.tsx`. (b) **Prod
+  static serving not wired** — dev is `vite` (proxies `/api`→:8000) + `uvicorn`; prod needs FastAPI
+  `StaticFiles(web/dist)` or a reverse proxy (fold into S15 ops). (c) Recharts bundle ~159 kB gzip
+  (fine for a 2-user LAN tool; code-split if it ever matters). (d) `npm audit` shows dev-dep
+  advisories (vite/vitest transitive) — not runtime.
+- **Committed to `main`** (`S11: Ringkasan dashboard …`), not pushed. Frontend framework
+  (React + Vite + TS + Recharts) confirmed by Tommy. The read API is framework-agnostic, so a
+  future framework change would touch only `web/`.
+- **Next:** confirm framework/§3.4 → commit S11. Then S12 Portofolio (§3.2), S13 Belanja (§3.3 +
+  S6 review queue), S14 Arus Kas (§3.5) — each needs its own read endpoint mirroring this one.
+
+## Done (prev session) ✅ — S10 Telegram bot
 - **S10 — Telegram ingestion bot.** A second entry point into the S9 pipeline, built as a
   Humble Object over `IngestStatement.execute` (reused verbatim with `uploaded_via=TELEGRAM`).
   - **`coffer/ingestion/detect.py` — pure account-type sniffer.** `detect_account_type(text)
@@ -499,6 +560,8 @@ _Last updated: 2026-07-14_
   only remaining runtime input is the **CIMB password itself** (below) to seed its credential.
 - ℹ️ **Portfolio contract shape** — RESOLVED by best-judgment while away: separate
   `ParsedPortfolio` type. Flag if you'd prefer a single-type model.
-- ⛔ **§3.4 bill-aggregator placement** — card on Ringkasan (recommended) vs. 5th tab — confirm before S11.
+- ⛔ **§3.4 bill-aggregator placement** — card on Ringkasan (recommended) vs. 5th tab. **S11 shipped
+  without it** (insertion point left in `views/Ringkasan.tsx`); confirm to add the bill due-date card.
+- ✅ **Frontend framework** — RESOLVED: **React + Vite + TS + Recharts** (confirmed; S11 merged to `main`).
 - ⛔ **Samples**: BCA CC, BCA savings, Ajaib, Stockbit — unblock remaining S1 parsers.
 - ⚠️ **CIMB edge cases**: no cash-advance / multi-card / multi-page statement seen yet.

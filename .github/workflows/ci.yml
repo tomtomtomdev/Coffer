@@ -57,3 +57,32 @@ jobs:
 
       - name: Tests (pytest)
         run: uv run pytest
+
+  # Frontend (web/ — Vite + React UI layer). Independent of the Python gate; consumes
+  # the read API over HTTP, so it needs no DB. tsc typecheck + Vitest + a production build.
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Types (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Tests (vitest)
+        run: npm run test
+
+      - name: Build
+        run: npm run build

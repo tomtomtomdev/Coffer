@@ -46,6 +46,7 @@ select = ["E", "F", "I", "UP", "B", "W"]
 # argument defaults; B008 (no function calls in defaults) does not apply to it.
 "coffer/api/routes.py" = ["B008"]
 "coffer/api/telegram_routes.py" = ["B008"]
+"coffer/api/dashboard_routes.py" = ["B008"]
 
 # ── Types (strict, per CLAUDE.md Definition of done) ────────────────────────────
 [tool.mypy]

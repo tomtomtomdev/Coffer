@@ -29,6 +29,13 @@ dist/
 .coverage
 htmlcov/
 
+# ─── Frontend (web/ — Vite + React UI layer) ───
+node_modules/
+web/dist/
+web/coverage/
+web/.vite/
+*.tsbuildinfo
+
 # ─── OS / editor ───
 .DS_Store
 .idea/
