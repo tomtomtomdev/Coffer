@@ -171,8 +171,21 @@ budgets/goals, notifications, multi-currency.
   Tommy's call and was unconfirmed; a clean insertion point is left in the Ringkasan view.
 - **Depends on:** S7, S8; design handoff.
 
-### S12 · Dashboard — Portofolio (§3.2) ⬜
-- Mixed-as-of-date caveat banner, summary cards, holdings table with CORP ACTION tags.
+### S12 · Dashboard — Portofolio (§3.2) ✅ (corp-action tags deferred)
+- **Backend:** `portfolio_consolidation` read model (`coffer/domain/read_models.py`) merges the
+  latest broker holdings by ticker — combined lots, **lots-weighted avg price**, market value,
+  unrealized P/L, per-broker breakdown, household totals — and flags **mixed-as-of dates** (SPEC
+  §3.2). `GET /api/dashboard/portofolio/{household_id}` (money as strings). Reader generalized:
+  `RingkasanReader` → `DashboardReader` (`.ringkasan` + `.portofolio`), DI `get_dashboard_reader`.
+- **Frontend:** `web/src/views/Portofolio.tsx` — rose mixed-date caveat banner, two summary cards
+  (Nilai Pasar Gabungan + Unrealized P/L with %), holdings table (Emiten / Broker / Lot / Avg-Harga
+  / Nilai-P&L) with an expandable per-broker breakdown + Total Rumah Tangga row. Self-fetches via a
+  generic `useApi` hook; wired into the shell's Portofolio tab.
+- **Done:** 236 pytest (read model + `TestClient` + Postgres integration) + 22 vitest; full gate
+  green; alembic no drift (no schema change).
+- **Deferred:** **CORP ACTION tags / lot-discontinuity detection** — no storage for it yet
+  (`holding` has no corp-action field) and it needs cross-statement comparison; not faked (CLAUDE.md
+  "don't invent"). Follow-up: add detection + a `holding.corp_action` note.
 - **Depends on:** S4 (holdings), S1 (portfolio parsers).
 
 ### S13 · Dashboard — Belanja (§3.3) ⬜

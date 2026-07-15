@@ -22,7 +22,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from coffer.api.adapters import FilesystemStatementArchive, PdfPlumberReader
-from coffer.api.dashboard import RingkasanReader
+from coffer.api.dashboard import DashboardReader
 from coffer.api.parsing import PARSERS
 from coffer.api.telegram_adapters import HttpxTelegramClient, InMemoryPendingUploadStore
 from coffer.ingestion.pipeline import IngestStatement
@@ -145,11 +145,11 @@ def get_telegram_use_case() -> Iterator[TelegramIngest]:
         session.commit()
 
 
-def get_ringkasan_reader() -> Iterator[RingkasanReader]:
-    """Per-request read-side reader (SPEC §3.1). Read-only — the session is opened and
+def get_dashboard_reader() -> Iterator[DashboardReader]:
+    """Per-request read-side reader (SPEC §3). Read-only — the session is opened and
     closed with no commit (nothing is written by the dashboard endpoints)."""
     with _session_factory()() as session:
-        yield RingkasanReader(session)
+        yield DashboardReader(session)
 
 
 def get_webhook_secret() -> str:

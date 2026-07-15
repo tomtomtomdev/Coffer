@@ -1,31 +1,13 @@
-import { useEffect, useState } from "react";
+import { fetchPortofolio, fetchRingkasan } from "../api/client";
+import type { PortofolioResponse, RingkasanResponse } from "../api/types";
+import { type AsyncState, useApi } from "./useApi";
 
-import { fetchRingkasan } from "../api/client";
-import type { RingkasanResponse } from "../api/types";
+/** Fetch the §3.1 Ringkasan payload for a household. */
+export function useRingkasan(householdId: number): AsyncState<RingkasanResponse> {
+  return useApi((signal) => fetchRingkasan(householdId, signal), householdId);
+}
 
-export type RingkasanState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; data: RingkasanResponse };
-
-/** Fetch the Ringkasan payload for a household, aborting on unmount / id change. */
-export function useRingkasan(householdId: number): RingkasanState {
-  const [state, setState] = useState<RingkasanState>({ status: "loading" });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ status: "loading" });
-    fetchRingkasan(householdId, controller.signal)
-      .then((data) => setState({ status: "ready", data }))
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setState({
-          status: "error",
-          message: err instanceof Error ? err.message : "Gagal memuat data",
-        });
-      });
-    return () => controller.abort();
-  }, [householdId]);
-
-  return state;
+/** Fetch the §3.2 Portofolio payload for a household. */
+export function usePortofolio(householdId: number): AsyncState<PortofolioResponse> {
+  return useApi((signal) => fetchPortofolio(householdId, signal), householdId);
 }

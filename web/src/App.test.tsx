@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { RingkasanResponse } from "./api/types";
+import type { PortofolioResponse, RingkasanResponse } from "./api/types";
 
-const { SAMPLE } = vi.hoisted(() => {
+const { SAMPLE, PORTFOLIO } = vi.hoisted(() => {
   const sample: RingkasanResponse = {
     as_of: "2026-06-30",
     net_worth: "943000000",
@@ -59,11 +59,52 @@ const { SAMPLE } = vi.hoisted(() => {
       monthly_cash_flow: "32000000",
     },
   };
-  return { SAMPLE: sample };
+  const portfolio: PortofolioResponse = {
+    total_market_value: "4750000",
+    total_unrealized_pl: "190000",
+    total_cost_basis: "4560000",
+    holdings: [
+      {
+        ticker: "BBCA",
+        name: "BBCA Tbk",
+        lots: "5",
+        avg_price: "9120",
+        market_value: "4750000",
+        unrealized_pl: "190000",
+        cost_basis: "4560000",
+        brokers: [
+          {
+            institution: "ajaib",
+            account_id: 10,
+            lots: "2",
+            avg_price: "9000",
+            market_price: "9500",
+            market_value: "1900000",
+            unrealized_pl: "100000",
+            as_of: "2026-06-30",
+          },
+          {
+            institution: "stockbit",
+            account_id: 11,
+            lots: "3",
+            avg_price: "9200",
+            market_price: "9500",
+            market_value: "2850000",
+            unrealized_pl: "90000",
+            as_of: "2026-06-30",
+          },
+        ],
+      },
+    ],
+    as_of_dates: ["2026-06-30"],
+    mixed_as_of: false,
+  };
+  return { SAMPLE: sample, PORTFOLIO: portfolio };
 });
 
 vi.mock("./api/client", () => ({
   fetchRingkasan: vi.fn(async () => SAMPLE),
+  fetchPortofolio: vi.fn(async () => PORTFOLIO),
 }));
 
 import { App } from "./App";
@@ -111,5 +152,16 @@ describe("App / Ringkasan", () => {
     const perMember = screen.getByRole("button", { name: "Per Anggota" });
     fireEvent.click(perMember);
     expect(perMember).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows consolidated holdings on the Portofolio tab", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { level: 1 });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Portofolio" })[0]!);
+
+    expect(await screen.findByText("BBCA")).toBeInTheDocument();
+    expect(screen.getByText("Nilai Pasar Gabungan")).toBeInTheDocument();
+    expect(screen.getByText("Total Rumah Tangga")).toBeInTheDocument();
   });
 });

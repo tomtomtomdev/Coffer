@@ -14,7 +14,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from coffer.api.app import create_app
-from coffer.api.dependencies import get_ringkasan_reader
+from coffer.api.dependencies import get_dashboard_reader
 from coffer.domain.enums import AccountType
 from coffer.domain.networth import Bucket
 from coffer.domain.read_models import (
@@ -41,7 +41,7 @@ class _FakeReader:
 def _client(view: RingkasanView) -> tuple[TestClient, _FakeReader]:
     fake = _FakeReader(view)
     app = create_app()
-    app.dependency_overrides[get_ringkasan_reader] = lambda: fake
+    app.dependency_overrides[get_dashboard_reader] = lambda: fake
     return TestClient(app), fake
 
 

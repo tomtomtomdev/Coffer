@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from coffer.api.dashboard import RingkasanReader
+from coffer.api.dashboard import DashboardReader
 from coffer.domain.entities import Account, Household, Member, Statement
 from coffer.domain.enums import AccountType, UploadedVia
 from coffer.ingestion.recompute import InProcessRecomputeLock, recompute_all
@@ -97,7 +97,7 @@ def test_ringkasan_over_real_repos(session: Session) -> None:
         lock=InProcessRecomputeLock(),
     )
 
-    view = RingkasanReader(session).ringkasan(hh.id)
+    view = DashboardReader(session).ringkasan(hh.id)
 
     # Headline + delta (JUN net 943M vs MAY net 892M).
     assert view.as_of == JUN

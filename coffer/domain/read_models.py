@@ -60,11 +60,15 @@ from coffer.domain.networth import Bucket, bucket_of, compute_snapshot
 from coffer.domain.repositories import (
     AccountRepo,
     CategoryRepo,
+    HoldingRepo,
     MemberRepo,
     NetworthSnapshotRepo,
     StatementRepo,
     TransactionRepo,
 )
+
+# Portfolio account types (SPEC §3.2 — Ajaib + Stockbit merged by ticker).
+_PORTFOLIO_TYPES = frozenset({AccountType.AJAIB_PORTFOLIO, AccountType.STOCKBIT_PORTFOLIO})
 
 # ── tunables (documented constants, not magic numbers) ──────────────────────────────
 WINDOW_MONTHS_DEFAULT = 6  # median-of-monthly-totals over the last 3–6 months (§3.3 step 3)
@@ -597,4 +601,126 @@ def compute_ringkasan(
         member_series=member_series,
         accounts=account_rows,
         kpis=kpis,
+    )
+
+
+# ── §3.2 Portofolio consolidation read model ──────────────────────────────────────────
+@dataclass(frozen=True)
+class BrokerHolding:
+    """One broker's line for a ticker — the per-broker breakdown (SPEC §3.2)."""
+
+    institution: str
+    account_id: int
+    lots: Decimal
+    avg_price: Decimal
+    market_price: Decimal
+    market_value: Decimal
+    unrealized_pl: Decimal
+    as_of: date
+
+
+@dataclass(frozen=True)
+class ConsolidatedHolding:
+    """A ticker merged across brokers: combined lots, lots-weighted avg, MV, P/L."""
+
+    ticker: str
+    name: str
+    lots: Decimal
+    avg_price: Decimal  # lots-weighted across brokers
+    market_value: Decimal
+    unrealized_pl: Decimal
+    cost_basis: Decimal  # market_value − unrealized_pl
+    brokers: list[BrokerHolding]
+
+
+@dataclass(frozen=True)
+class PortfolioView:
+    """The §3.2 consolidated-holdings payload.
+
+    ``mixed_as_of`` is True when the brokers price as-of different dates — the combined
+    P/L is then only loosely comparable (SPEC §3.2), so the UI shows the caveat banner and
+    the per-broker figures rather than presenting a single false number.
+    """
+
+    total_market_value: Decimal
+    total_unrealized_pl: Decimal
+    total_cost_basis: Decimal
+    holdings: list[ConsolidatedHolding]
+    as_of_dates: list[date]
+    mixed_as_of: bool
+
+
+def portfolio_consolidation(
+    *,
+    household_id: int,
+    accounts: AccountRepo,
+    statements: StatementRepo,
+    holdings: HoldingRepo,
+) -> PortfolioView:
+    """Merge the latest broker holdings by ticker into the §3.2 consolidated view.
+
+    Each broker account contributes its **latest** statement's holdings (carry-forward);
+    holdings are grouped by ticker with a lots-weighted average cost. Broker cash is not
+    a holding, so it never appears here (it is net worth's concern, §3.1).
+    """
+    by_ticker: dict[str, list[BrokerHolding]] = defaultdict(list)
+    name_of: dict[str, str] = {}
+    as_of_set: set[date] = set()
+
+    for account in accounts.list_by_household(household_id):
+        if account.account_type not in _PORTFOLIO_TYPES or account.id is None:
+            continue
+        stmts = statements.list_by_account(account.id)  # period_end-ascending
+        if not stmts:
+            continue
+        latest = stmts[-1]
+        if latest.id is None:
+            continue
+        for h in holdings.list_by_statement(latest.id):
+            by_ticker[h.ticker].append(
+                BrokerHolding(
+                    institution=account.institution,
+                    account_id=account.id,
+                    lots=h.lot_balance,
+                    avg_price=h.avg_price,
+                    market_price=h.market_price,
+                    market_value=h.market_value,
+                    unrealized_pl=h.unrealized_pl,
+                    as_of=h.as_of_date,
+                )
+            )
+            if h.name and h.ticker not in name_of:
+                name_of[h.ticker] = h.name
+            as_of_set.add(h.as_of_date)
+
+    consolidated: list[ConsolidatedHolding] = []
+    for ticker, brokers in by_ticker.items():
+        lots = sum((b.lots for b in brokers), Decimal("0"))
+        market_value = sum((b.market_value for b in brokers), Decimal("0"))
+        unrealized_pl = sum((b.unrealized_pl for b in brokers), Decimal("0"))
+        weighted = sum((b.avg_price * b.lots for b in brokers), Decimal("0"))
+        avg_price = weighted / lots if lots != 0 else Decimal("0")
+        consolidated.append(
+            ConsolidatedHolding(
+                ticker=ticker,
+                name=name_of.get(ticker, ticker),
+                lots=lots,
+                avg_price=avg_price,
+                market_value=market_value,
+                unrealized_pl=unrealized_pl,
+                cost_basis=market_value - unrealized_pl,
+                brokers=sorted(brokers, key=lambda b: b.institution),
+            )
+        )
+    consolidated.sort(key=lambda c: (-c.market_value, c.ticker))
+
+    total_market_value = sum((c.market_value for c in consolidated), Decimal("0"))
+    total_unrealized_pl = sum((c.unrealized_pl for c in consolidated), Decimal("0"))
+    return PortfolioView(
+        total_market_value=total_market_value,
+        total_unrealized_pl=total_unrealized_pl,
+        total_cost_basis=total_market_value - total_unrealized_pl,
+        holdings=consolidated,
+        as_of_dates=sorted(as_of_set),
+        mixed_as_of=len(as_of_set) > 1,
     )

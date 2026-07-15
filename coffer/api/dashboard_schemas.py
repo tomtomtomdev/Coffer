@@ -11,7 +11,7 @@ from datetime import date
 
 from pydantic import BaseModel
 
-from coffer.domain.read_models import RingkasanView
+from coffer.domain.read_models import PortfolioView, RingkasanView
 
 
 class GridPointSchema(BaseModel):
@@ -130,4 +130,72 @@ class RingkasanResponse(BaseModel):
                     else str(view.kpis.monthly_cash_flow)
                 ),
             ),
+        )
+
+
+class BrokerHoldingSchema(BaseModel):
+    institution: str
+    account_id: int
+    lots: str
+    avg_price: str
+    market_price: str
+    market_value: str
+    unrealized_pl: str
+    as_of: date
+
+
+class ConsolidatedHoldingSchema(BaseModel):
+    ticker: str
+    name: str
+    lots: str
+    avg_price: str
+    market_value: str
+    unrealized_pl: str
+    cost_basis: str
+    brokers: list[BrokerHoldingSchema]
+
+
+class PortofolioResponse(BaseModel):
+    """The §3.2 consolidated-holdings payload (money as strings; charts/format at the edge)."""
+
+    total_market_value: str
+    total_unrealized_pl: str
+    total_cost_basis: str
+    holdings: list[ConsolidatedHoldingSchema]
+    as_of_dates: list[date]
+    mixed_as_of: bool
+
+    @classmethod
+    def from_view(cls, view: PortfolioView) -> PortofolioResponse:
+        return cls(
+            total_market_value=str(view.total_market_value),
+            total_unrealized_pl=str(view.total_unrealized_pl),
+            total_cost_basis=str(view.total_cost_basis),
+            as_of_dates=view.as_of_dates,
+            mixed_as_of=view.mixed_as_of,
+            holdings=[
+                ConsolidatedHoldingSchema(
+                    ticker=h.ticker,
+                    name=h.name,
+                    lots=str(h.lots),
+                    avg_price=str(h.avg_price),
+                    market_value=str(h.market_value),
+                    unrealized_pl=str(h.unrealized_pl),
+                    cost_basis=str(h.cost_basis),
+                    brokers=[
+                        BrokerHoldingSchema(
+                            institution=b.institution,
+                            account_id=b.account_id,
+                            lots=str(b.lots),
+                            avg_price=str(b.avg_price),
+                            market_price=str(b.market_price),
+                            market_value=str(b.market_value),
+                            unrealized_pl=str(b.unrealized_pl),
+                            as_of=b.as_of,
+                        )
+                        for b in h.brokers
+                    ],
+                )
+                for h in view.holdings
+            ],
         )

@@ -5,6 +5,42 @@
 
 _Last updated: 2026-07-15_
 
+## Done (this session) ✅ — S12 Portofolio dashboard (§3.2)
+Same read-model + endpoint + view pattern as S11; second dashboard tab now live.
+- **Reader generalized** — `RingkasanReader` → **`DashboardReader`** (`coffer/api/dashboard.py`)
+  with `.ringkasan` + `.portofolio`; DI renamed `get_ringkasan_reader` → **`get_dashboard_reader`**
+  (S11 route/tests updated). One reader per session, N view methods — the pattern S13/S14 extend.
+- **`portfolio_consolidation` read model** (`coffer/domain/read_models.py`) — pure, repo-driven.
+  Each broker account contributes its **latest** statement's holdings (carry-forward); merged by
+  ticker into combined lots, **lots-weighted avg cost** (`Σ(avg·lots)/Σlots`), market value,
+  unrealized P/L, cost basis (`mv − pl`), and a per-broker breakdown. **Mixed-as-of guard** (SPEC
+  §3.2): distinct broker as-of dates → `mixed_as_of=True` so the UI shows the caveat + per-broker
+  figures instead of a false single P/L. Broker cash is not a holding → never appears here (it's
+  §3.1's concern, counted once bank-side). Sorted by market value desc.
+- **Endpoint** — `GET /api/dashboard/portofolio/{household_id}` (`dashboard_routes.py` +
+  `PortofolioResponse` in `dashboard_schemas.py`); money as strings, per-broker `brokers[]` nested.
+- **Frontend** — `web/src/views/Portofolio.tsx`: rose mixed-date caveat banner, two summary cards
+  (market value + P/L%, colored by sign), holdings table (Emiten/Broker/Lot/Avg-Harga/Nilai-P&L)
+  with a click-to-expand per-broker breakdown and a Total Rumah Tangga row. Self-fetching via a new
+  generic **`useApi<T>`** hook (`useRingkasan`/`usePortofolio` are thin wrappers); shared
+  `Status.tsx` loading/error cards; wired into the Portofolio tab. `shares = lots × 100` and the
+  blended current price (`mv/shares`) are UI-side derivations.
+- **Tests (+9 py, +1 ts):** `test_portofolio.py` (6 — merge/weighted-avg/totals+ordering/
+  same-as-of/mixed-as-of/latest-only/empty), `test_api_portofolio.py` (2 — string-money shape +
+  empty), `test_portofolio_integration.py` (1 — full read path over Postgres via `DashboardReader`);
+  vitest App test now also drives the Portofolio tab.
+- **Full gate green:** ruff · ruff-format · mypy --strict (76 files) · lint-imports KEPT ·
+  **236 pytest** · alembic no-drift (no schema change) ‖ **web:** tsc · **22 vitest** · vite build.
+- **⚠ Follow-ups:** (a) **CORP ACTION tags deferred** — the frozen design shows them but there's no
+  storage (`holding` has no corp-action field) and detection needs cross-statement lot-discontinuity
+  comparison; not faked (CLAUDE.md "don't invent"). Add a `holding.corp_action` note + detection
+  later. (b) Prod static serving still unwired (S11 note; S15 ops). (c) Recharts bundle unchanged.
+- **Committed to `main`** (`S12: …`), not pushed.
+- **Next:** S13 Belanja (§3.3 — routine hero + sparkline + per-category medians + review queue wired
+  to S6 categorization) and S14 Arus Kas (§3.5 — income-vs-spend bars + savings-rate line). Both add
+  a `DashboardReader` method + endpoint + view; S13 also needs a review-queue read (uncategorized +
+  learned/regex-tagged rows) and Tag/Ubah actions (write path → S6 `retag`/`build_learned_rule`).
+
 ## Done (this session) ✅ — S11 Ringkasan dashboard (§3.1)
 First frontend slice + its read API. Split cleanly so the backend is framework-agnostic:
 **all dashboard math stays in Python; the frontend is pure presentation** (id-ID formatting +

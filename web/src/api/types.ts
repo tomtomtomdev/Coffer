@@ -57,3 +57,35 @@ export interface RingkasanResponse {
   accounts: AccountBalance[];
   kpis: Kpis;
 }
+
+// ── §3.2 Portofolio ──────────────────────────────────────────────────────────────────
+export interface BrokerHolding {
+  institution: string;
+  account_id: number;
+  lots: string;
+  avg_price: string;
+  market_price: string;
+  market_value: string;
+  unrealized_pl: string;
+  as_of: string;
+}
+
+export interface ConsolidatedHolding {
+  ticker: string;
+  name: string;
+  lots: string;
+  avg_price: string;
+  market_value: string;
+  unrealized_pl: string;
+  cost_basis: string;
+  brokers: BrokerHolding[];
+}
+
+export interface PortofolioResponse {
+  total_market_value: string;
+  total_unrealized_pl: string;
+  total_cost_basis: string;
+  holdings: ConsolidatedHolding[];
+  as_of_dates: string[];
+  mixed_as_of: boolean;
+}

@@ -2,10 +2,12 @@ import { useState } from "react";
 
 import { BottomNav } from "./components/BottomNav";
 import { Header } from "./components/Header";
+import { ErrorCard, LoadingCard } from "./components/Status";
 import { monthLong } from "./lib/format";
 import { useRingkasan } from "./lib/useRingkasan";
 import { TABS, type ViewId } from "./nav";
 import { Placeholder } from "./views/Placeholder";
+import { Portofolio } from "./views/Portofolio";
 import { Ringkasan } from "./views/Ringkasan";
 
 // Single shared household (SPEC §5 — one login, two members).
@@ -31,27 +33,16 @@ export function App() {
     <div className="app">
       <Header view={view} onSelect={select} monthLabel={monthLabel} />
       <main className="main">
-        {state.status === "loading" && (
-          <div className="view">
-            <div className="card placeholder">
-              <div className="placeholder__sub">Memuat…</div>
-            </div>
-          </div>
-        )}
-        {state.status === "error" && (
-          <div className="view">
-            <div className="card placeholder">
-              <div className="placeholder__title">Gagal memuat</div>
-              <div className="placeholder__sub">{state.message}</div>
-            </div>
-          </div>
-        )}
-        {state.status === "ready" &&
-          (view === "overview" ? (
-            <Ringkasan data={state.data} onNavigate={select} />
+        {view === "overview" &&
+          (state.status === "loading" ? (
+            <LoadingCard />
+          ) : state.status === "error" ? (
+            <ErrorCard message={state.message} />
           ) : (
-            <Placeholder title={labelOf(view)} />
+            <Ringkasan data={state.data} onNavigate={select} />
           ))}
+        {view === "portfolio" && <Portofolio householdId={HOUSEHOLD_ID} />}
+        {(view === "spend" || view === "cashflow") && <Placeholder title={labelOf(view)} />}
       </main>
       <BottomNav view={view} onSelect={select} />
     </div>
