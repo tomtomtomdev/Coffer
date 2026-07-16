@@ -590,6 +590,121 @@ def compute_cash_flow(
     )
 
 
+# ── §3.5 Arus Kas (cash-flow screen) assembled read model ─────────────────────────────
+# The spend-type breakdown is shown in this fixed order (SPEC §3.5 display); a type with no
+# spend in the latest month is dropped rather than shown as a zero row (no fabricated rows).
+_SPEND_TYPE_ORDER = (CategoryType.ROUTINE, CategoryType.DISCRETIONARY, CategoryType.ONE_OFF)
+
+
+@dataclass(frozen=True)
+class IncomeSource:
+    """One row of the "Sumber Pendapatan" list — an income *category*'s total credits in
+    the latest cash-flow month (SPEC §3.5 display)."""
+
+    category_id: int
+    label: str
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class SpendTypeTotal:
+    """One row of the "Belanja per Tipe" list — a spend ``CategoryType``'s total debits in
+    the latest cash-flow month. The UI edge maps the type to its Bahasa label."""
+
+    type: CategoryType
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class ArusKasView:
+    """The assembled §3.5 Arus Kas screen.
+
+    ``months`` is the full monthly income/spend/cash-flow/savings-rate series (the grouped
+    bars + the savings-rate line; the UI shows the last ``window_months``).
+    ``headline_savings_rate`` is the window aggregate (``None`` when that window's income is
+    zero); ``latest_cash_flow`` is the most recent month's income − spend (the "Arus Kas ·
+    <bulan>" card). The two breakdown lists are for the **latest month** (matching the
+    frozen design's "· <bulan>" scoping): ``income_sources`` by category, ``spend_by_type``
+    by spend type. Both are empty when there is no month of data.
+    """
+
+    months: list[MonthlyCashFlow]
+    headline_savings_rate: Decimal | None
+    window_months: int
+    latest_month: date | None
+    latest_cash_flow: Decimal | None
+    income_sources: list[IncomeSource]
+    spend_by_type: list[SpendTypeTotal]
+
+
+def build_arus_kas(
+    transactions: Sequence[Transaction],
+    categories: Sequence[Category],
+    *,
+    window_months: int = WINDOW_MONTHS_DEFAULT,
+) -> ArusKasView:
+    """Assemble the SPEC §3.5 Arus Kas view from already-fetched domain rows (pure).
+
+    The monthly series + headline come from ``cash_flow_summary``; the two breakdown lists
+    are computed for the latest month present in that series (the same month whose cash flow
+    is the headline "Arus Kas · <bulan>" figure).
+    """
+    summary = cash_flow_summary(transactions, categories, window_months=window_months)
+    latest = summary.months[-1].month if summary.months else None
+    latest_cash_flow = summary.months[-1].cash_flow if summary.months else None
+
+    income_by_cat: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    spend_by_type: dict[CategoryType, Decimal] = defaultdict(lambda: Decimal("0"))
+    label_of = {c.id: c.label for c in categories if c.id is not None}
+    if latest is not None:
+        for txn, cat in _pair_with_category(transactions, categories):
+            if _month_key(txn.date) != latest:
+                continue
+            if cat.type is CategoryType.INCOME and cat.id is not None:
+                income_by_cat[cat.id] += txn.credit
+            elif cat.type in _SPEND_TYPES:
+                spend_by_type[cat.type] += txn.debit
+
+    income_sources = sorted(
+        (
+            IncomeSource(cid, label_of.get(cid, ""), amount)
+            for cid, amount in income_by_cat.items()
+            if amount != 0
+        ),
+        key=lambda s: (-s.amount, s.category_id),
+    )
+    spend_type_totals = [
+        SpendTypeTotal(t, spend_by_type[t]) for t in _SPEND_TYPE_ORDER if spend_by_type.get(t)
+    ]
+
+    return ArusKasView(
+        months=summary.months,
+        headline_savings_rate=summary.headline_savings_rate,
+        window_months=summary.window_months,
+        latest_month=latest,
+        latest_cash_flow=latest_cash_flow,
+        income_sources=income_sources,
+        spend_by_type=spend_type_totals,
+    )
+
+
+def compute_arus_kas(
+    *,
+    household_id: int,
+    accounts: AccountRepo,
+    transactions: TransactionRepo,
+    categories: CategoryRepo,
+    window_months: int = WINDOW_MONTHS_DEFAULT,
+) -> ArusKasView:
+    """Repo-driven §3.5 Arus Kas view — fetches the household's transactions + categories
+    once (mirrors ``compute_belanja``'s load)."""
+    return build_arus_kas(
+        _household_transactions(household_id, accounts, transactions),
+        categories.list_by_household(household_id),
+        window_months=window_months,
+    )
+
+
 # ── §3.1 Ringkasan (net-worth overview) read model ────────────────────────────────────
 @dataclass(frozen=True)
 class NetworthGridPoint:

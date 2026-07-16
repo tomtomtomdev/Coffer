@@ -154,6 +154,36 @@ export interface BelanjaResponse {
   categories: CategoryOption[];
 }
 
+// ── §3.5 Arus Kas ────────────────────────────────────────────────────────────────────
+export interface MonthlyCashFlow {
+  month: string; // ISO date (month-first)
+  income: string;
+  spend: string;
+  cash_flow: string;
+  savings_rate: string | null; // null when the month's income was zero
+}
+
+export interface IncomeSource {
+  category_id: number;
+  label: string;
+  amount: string;
+}
+
+export interface SpendType {
+  type: string; // CategoryType value: "routine" | "discretionary" | "one_off"
+  amount: string;
+}
+
+export interface ArusKasResponse {
+  months: MonthlyCashFlow[];
+  headline_savings_rate: string | null; // null when the window's income was zero
+  window_months: number;
+  latest_month: string | null;
+  latest_cash_flow: string | null;
+  income_sources: IncomeSource[];
+  spend_by_type: SpendType[];
+}
+
 // The Tag/Ubah write — the only mutation in the dashboard so far.
 export interface RecategorizeRequest {
   category_id: number;

@@ -10,7 +10,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from coffer.api.dashboard import DashboardReader
-from coffer.api.dashboard_schemas import BelanjaResponse, PortofolioResponse, RingkasanResponse
+from coffer.api.dashboard_schemas import (
+    ArusKasResponse,
+    BelanjaResponse,
+    PortofolioResponse,
+    RingkasanResponse,
+)
 from coffer.api.dependencies import get_dashboard_reader
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -42,3 +47,14 @@ async def get_belanja(
     """The §3.3 spend screen: routine estimate + sparkline + per-category medians +
     anomalies + review queue + the category list for the Tag/Ubah picker."""
     return BelanjaResponse.from_view(reader.belanja(household_id))
+
+
+@router.get("/arus-kas/{household_id}", response_model=ArusKasResponse)
+async def get_arus_kas(
+    household_id: int,
+    reader: DashboardReader = Depends(get_dashboard_reader),
+) -> ArusKasResponse:
+    """The §3.5 cash-flow screen: monthly income-vs-spend + savings-rate series, the
+    headline savings rate + latest-month cash flow, and the latest month's income-source
+    and spend-type breakdown lists."""
+    return ArusKasResponse.from_view(reader.arus_kas(household_id))

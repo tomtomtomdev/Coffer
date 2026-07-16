@@ -1019,6 +1019,63 @@ button {
   color: var(--red);
 }
 
+/* ── Arus Kas (§3.5) ─────────────────────────────────────────── */
+.pcard__sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+/* Cash-flow summary figures are a touch larger than the portfolio ones (MEASUREMENTS).
+ * Colour comes from the sign class (.pl--pos / .pl--neg) applied in the view. */
+.pcard__figure--flow {
+  font-size: 37px;
+}
+
+.flowcard {
+  border-radius: 24px;
+  padding: 22px;
+}
+
+/* Income-source / spend-type list cards */
+.fllist {
+  border-radius: 20px;
+  padding: 20px 22px;
+}
+
+.fllist__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.fllist__row:last-child {
+  border-bottom: none;
+}
+
+.fllist__amt {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.fllist__amt--in {
+  color: var(--cash);
+}
+
+.fllist__amt--out {
+  color: var(--liab);
+}
+
+.fllist__empty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 0;
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .topnav {

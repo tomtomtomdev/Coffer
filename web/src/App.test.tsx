@@ -2,9 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { recategorizeTransaction } from "./api/client";
-import type { BelanjaResponse, PortofolioResponse, RingkasanResponse } from "./api/types";
+import type {
+  ArusKasResponse,
+  BelanjaResponse,
+  PortofolioResponse,
+  RingkasanResponse,
+} from "./api/types";
 
-const { SAMPLE, PORTFOLIO, BELANJA } = vi.hoisted(() => {
+const { SAMPLE, PORTFOLIO, BELANJA, ARUSKAS } = vi.hoisted(() => {
   const sample: RingkasanResponse = {
     as_of: "2026-06-30",
     net_worth: "943000000",
@@ -142,13 +147,32 @@ const { SAMPLE, PORTFOLIO, BELANJA } = vi.hoisted(() => {
     ],
     categories: [{ id: 1, label: "Cicilan KPR", type: "routine", cadence: "monthly" }],
   };
-  return { SAMPLE: sample, PORTFOLIO: portfolio, BELANJA: belanja };
+  const arusKas: ArusKasResponse = {
+    months: [
+      { month: "2026-05-01", income: "60000000", spend: "34000000", cash_flow: "26000000", savings_rate: "0.4333333" },
+      { month: "2026-06-01", income: "66000000", spend: "34000000", cash_flow: "32000000", savings_rate: "0.4848484" },
+    ],
+    headline_savings_rate: "0.46",
+    window_months: 6,
+    latest_month: "2026-06-01",
+    latest_cash_flow: "32000000",
+    income_sources: [
+      { category_id: 1, label: "Gaji · Tommy", amount: "38000000" },
+      { category_id: 2, label: "Gaji · Priskila", amount: "22000000" },
+    ],
+    spend_by_type: [
+      { type: "routine", amount: "23800000" },
+      { type: "one_off", amount: "2300000" },
+    ],
+  };
+  return { SAMPLE: sample, PORTFOLIO: portfolio, BELANJA: belanja, ARUSKAS: arusKas };
 });
 
 vi.mock("./api/client", () => ({
   fetchRingkasan: vi.fn(async () => SAMPLE),
   fetchPortofolio: vi.fn(async () => PORTFOLIO),
   fetchBelanja: vi.fn(async () => BELANJA),
+  fetchArusKas: vi.fn(async () => ARUSKAS),
   recategorizeTransaction: vi.fn(async () => ({
     transaction_id: 77,
     category_id: 1,
@@ -183,17 +207,34 @@ describe("App / Ringkasan", () => {
     expect(screen.getByText("Juni 2026")).toBeInTheDocument();
   });
 
-  it("switches to a placeholder tab and back", async () => {
+  it("switches to the Arus Kas tab and back", async () => {
     render(<App />);
     await screen.findByRole("heading", { level: 1 });
 
     fireEvent.click(screen.getAllByRole("button", { name: "Arus Kas" })[0]!);
-    expect(screen.getByText(/slice berikutnya/)).toBeInTheDocument();
+    expect(await screen.findByText("Tingkat Menabung")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Ringkasan" })[0]!);
     await waitFor(() =>
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Rp 943.000.000"),
     );
+  });
+
+  it("shows the savings rate, cash flow, and breakdown lists on Arus Kas", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { level: 1 });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Arus Kas" })[0]!);
+
+    // Summary cards: savings rate (window average) + latest-month cash flow.
+    expect(await screen.findByText("46%")).toBeInTheDocument();
+    expect(screen.getByText("Rp 32.000.000")).toBeInTheDocument();
+    expect(screen.getByText("Arus Kas · Juni")).toBeInTheDocument();
+
+    // Breakdown lists: an income source and a spend type (frozen-design copy).
+    expect(screen.getByText("Gaji · Tommy")).toBeInTheDocument();
+    expect(screen.getByText("Rp 38.000.000")).toBeInTheDocument();
+    expect(screen.getByText("Rutin")).toBeInTheDocument();
   });
 
   it("toggles the net-worth mode to Per Anggota", async () => {

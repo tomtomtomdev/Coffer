@@ -5,7 +5,64 @@
 
 _Last updated: 2026-07-16_
 
-## Done (this session) ✅ — S13 Belanja dashboard (§3.3)
+## Done (this session) ✅ — S14 Arus Kas dashboard (§3.5)
+The cash-flow screen — the **fourth and final frozen tab**, and the last of Phase C's dashboards.
+Read-only, same read-half pattern as S11/S12 (DashboardReader method + endpoint + self-fetching
+view). The S8 `cash_flow_summary` already did the monthly income−spend + savings-rate math; S14
+wraps it into an assembled view, adds the two latest-month breakdown lists, and draws the chart.
+
+- **Read model — `build_arus_kas` / `compute_arus_kas`** (`coffer/domain/read_models.py`), pure +
+  repo-driven like S8/S13. Wraps `cash_flow_summary` (the full monthly `MonthlyCashFlow` series +
+  the window `headline_savings_rate`) and adds, for the **latest month** in the series:
+  - **`income_sources: list[IncomeSource]`** — income totals by **category** (label + amount),
+    sorted by amount desc. Matches the design's "Sumber Pendapatan · <bulan>".
+  - **`spend_by_type: list[SpendTypeTotal]`** — spend totals by **CategoryType** in a fixed
+    `routine → discretionary → one_off` order; the UI maps the type to its Bahasa label.
+  - **`latest_month` / `latest_cash_flow`** — drives the "Arus Kas · <bulan>" summary card.
+  - **Decision — breakdowns are scoped to the latest month** (not the window), matching the frozen
+    design's "· <bulan>" labels and the latest-month cash-flow card. A zero-amount category/type is
+    **dropped**, not shown as a `Rp 0` row (no fabricated rows — the read-model house style).
+    Transfers / investment_moves / uncategorized are excluded from flow (via `cash_flow_summary`).
+- **Read endpoint** — `GET /api/dashboard/arus-kas/{household_id}` (`dashboard_routes.py` +
+  `ArusKasResponse`/nested `MonthlyCashFlowSchema`/`IncomeSourceSchema`/`SpendTypeSchema` in
+  `dashboard_schemas.py` + `DashboardReader.arus_kas`). Money + savings-rate as strings (the
+  invariant), `spend_by_type.type` as the enum `.value`; `savings_rate`/`headline_savings_rate`/
+  `latest_*` null-safe. No DI change — the existing `get_dashboard_reader` already carries the repos.
+- **Frontend — `web/src/views/ArusKas.tsx`** (self-fetching via a new `useArusKas`): two summary
+  cards (Tingkat Menabung = window-avg savings rate; Arus Kas · <bulan> = latest cash flow, both
+  sign-coloured green/rose), the **`CashFlowChart`** (Recharts `ComposedChart`: grouped income
+  (green) / spend (rose) bars + a **dashed savings-rate line on a secondary right axis**,
+  `connectNulls={false}` so a zero-income month breaks the line), and the two breakdown list cards.
+  - New pure **`lib/cashflow.ts`** (`cashFlowChartData` windows to the last `window_months` +
+    maps a null savings rate to a line gap; `incomeAxisMax` = 1.22× the largest bar; `savingsAxisMax`
+    capped at 100%; `spendTypeLabel` = frozen "Rutin/Discretionary/One-off" copy) + `cashflow.test.ts`.
+    New `monthName` in `lib/format.ts` (long month, no year) for the "· Juni" labels. New CSS for
+    the summary figure size + list cards per MEASUREMENTS §Cash Flow.
+  - **All four tabs are now live** → the `cashflow` placeholder is gone and `views/Placeholder.tsx`
+    was deleted (`.placeholder` CSS stays — `Status.tsx`'s loading/error cards reuse it).
+- **Tests (+12 py, +6 ts):** `test_arus_kas.py` (8 — series+headline / latest-month income sources
+  sorted / spend-by-type fixed-order+zero-drop+transfer-excluded / savings-rate div0 guard /
+  transfers+investment excluded / uncategorized excluded / empty / repo wrapper across accounts),
+  `test_api_arus_kas.py` (3 — string-money shape + empty + savings-rate null), `test_arus_kas_integration.py`
+  (1 — full read path over Postgres via `DashboardReader.arus_kas`). Web: `cashflow.test.ts` (5) +
+  1 new `App.test.tsx` (Arus Kas render: savings rate + cash flow + breakdown lists); the old
+  "placeholder tab" test became "switches to the Arus Kas tab and back".
+- **Full gate green:** ruff · ruff-format · mypy --strict (87 files) · lint-imports KEPT ·
+  **274 pytest** · alembic no-drift (verified on a fresh DB — **no schema change**; read-only over
+  existing tables) ‖ **web:** tsc · **37 vitest** · vite build.
+- **⚠ Follow-ups:** (a) §3.4 bill due-date card still deferred (S11 — placement is Tommy's call).
+  (b) The savings-rate line has no per-point `%` text label (design shows one above each dot); the
+  rate is pinned in the summary card + shown on hover — add a Recharts `LabelList` if wanted.
+  (c) Prod static serving still unwired (S11/S15 ops). (d) Recharts bundle ~163 kB gzip (the chart
+  is genuine Recharts, unlike S13's CSS sparkline).
+- **Committed to `main`** (`S14: …`), not pushed.
+- **Next:** **Phase C dashboards complete (S11–S14, all four frozen tabs live).** Remaining plan
+  items: **S15 backup + ops** (DB + encrypted originals into the TrueNAS/restic pipeline; wire prod
+  static serving of `web/dist` — the standing S11 follow-up; monthly spot-check reminder). Product
+  open items still needing Tommy: §3.4 bill-card placement, the CIMB password (to seed its
+  `institution_credential` for encrypted Telegram ingest), and the remaining S1 parser samples.
+
+## Done (prev session) ✅ — S13 Belanja dashboard (§3.3)
 The spend screen — the first slice with a **write path** (Tag/Ubah). Same read pattern as
 S11/S12 (DashboardReader method + endpoint + view), plus a repo-driven re-tag use-case and
 the SPA's first mutation. All spend math stays in Python; the web is presentation only.

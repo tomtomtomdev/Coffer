@@ -209,8 +209,19 @@ budgets/goals, notifications, multi-currency.
   pagination; a machine-readable anomaly reason (UI renders Bahasa from `category_median`).
 - **Depends on:** S6, S8.
 
-### S14 · Dashboard — Arus Kas (§3.5) ⬜
-- Income-vs-spend bars + savings-rate line, source/type breakdown lists.
+### S14 · Dashboard — Arus Kas (§3.5) ✅
+- **Backend read:** `build_arus_kas`/`compute_arus_kas` (`coffer/domain/read_models.py`) wrap the
+  S8 `cash_flow_summary` — the monthly income/spend/cash-flow/savings-rate series + window
+  headline — and add the **latest month's** income-by-category (`IncomeSource`) + spend-by-type
+  (`SpendTypeTotal`) breakdown lists. `GET /api/dashboard/arus-kas/{household_id}` (money as
+  strings; `DashboardReader.arus_kas`). Read-only; no write path.
+- **Frontend:** `web/src/views/ArusKas.tsx` — savings-rate + latest-month cash-flow summary cards,
+  `CashFlowChart.tsx` (Recharts `ComposedChart`: grouped income/spend bars + dashed savings-rate
+  line on a secondary axis), and the two breakdown list cards (Sumber Pendapatan / Belanja per
+  Tipe). New pure `lib/cashflow.ts` (+ test). Wired into the `cashflow` tab; the last placeholder
+  is gone (all four tabs now live) so `views/Placeholder.tsx` was removed.
+- **Done:** 274 pytest (read model + `TestClient` + Postgres integration) + 37 vitest; full gate
+  green; alembic no drift (no schema change — read-only over existing tables).
 - **Depends on:** S8.
 
 ### S15 · Backup + ops ⬜

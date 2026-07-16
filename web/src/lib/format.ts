@@ -114,6 +114,11 @@ export function monthLong(iso: string): string {
   return `${MONTHS_LONG[monthIndex(iso)] ?? ""} ${y}`;
 }
 
+/** ISO date → "Juni" (id-ID long month, no year) for the "· <bulan>" card labels. */
+export function monthName(iso: string): string {
+  return MONTHS_LONG[monthIndex(iso)] ?? "";
+}
+
 /** ISO date → "30 Jun 2026" (day + short month + year). */
 export function fmtDate(iso: string): string {
   const parts = iso.split("-");

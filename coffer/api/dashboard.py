@@ -8,9 +8,11 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from coffer.domain.read_models import (
+    ArusKasView,
     BelanjaView,
     PortfolioView,
     RingkasanView,
+    compute_arus_kas,
     compute_belanja,
     compute_ringkasan,
     portfolio_consolidation,
@@ -53,6 +55,14 @@ class DashboardReader:
 
     def belanja(self, household_id: int) -> BelanjaView:
         return compute_belanja(
+            household_id=household_id,
+            accounts=SqlAccountRepo(self._session),
+            transactions=SqlTransactionRepo(self._session),
+            categories=SqlCategoryRepo(self._session),
+        )
+
+    def arus_kas(self, household_id: int) -> ArusKasView:
+        return compute_arus_kas(
             household_id=household_id,
             accounts=SqlAccountRepo(self._session),
             transactions=SqlTransactionRepo(self._session),

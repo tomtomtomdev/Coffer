@@ -1,4 +1,5 @@
 import type {
+  ArusKasResponse,
   BelanjaResponse,
   PortofolioResponse,
   RecategorizeRequest,
@@ -46,6 +47,11 @@ export function fetchPortofolio(
 /** §3.3 Belanja payload. */
 export function fetchBelanja(householdId: number, signal?: AbortSignal): Promise<BelanjaResponse> {
   return getJson(`/api/dashboard/belanja/${householdId}`, signal);
+}
+
+/** §3.5 Arus Kas payload. */
+export function fetchArusKas(householdId: number, signal?: AbortSignal): Promise<ArusKasResponse> {
+  return getJson(`/api/dashboard/arus-kas/${householdId}`, signal);
 }
 
 /** Tag/Ubah — apply a manual category to a transaction (SPEC §3.3). */

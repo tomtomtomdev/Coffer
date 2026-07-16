@@ -11,7 +11,7 @@ from datetime import date
 
 from pydantic import BaseModel
 
-from coffer.domain.read_models import BelanjaView, PortfolioView, RingkasanView
+from coffer.domain.read_models import ArusKasView, BelanjaView, PortfolioView, RingkasanView
 
 
 class GridPointSchema(BaseModel):
@@ -324,5 +324,66 @@ class PortofolioResponse(BaseModel):
                     ],
                 )
                 for h in view.holdings
+            ],
+        )
+
+
+class MonthlyCashFlowSchema(BaseModel):
+    month: date
+    income: str
+    spend: str
+    cash_flow: str
+    savings_rate: str | None  # null when the month's income was zero
+
+
+class IncomeSourceSchema(BaseModel):
+    category_id: int
+    label: str
+    amount: str
+
+
+class SpendTypeSchema(BaseModel):
+    type: str  # CategoryType value: "routine" | "discretionary" | "one_off"
+    amount: str
+
+
+class ArusKasResponse(BaseModel):
+    """The §3.5 cash-flow payload (money as strings; charts/format at the edge)."""
+
+    months: list[MonthlyCashFlowSchema]
+    headline_savings_rate: str | None  # null when the window's income was zero
+    window_months: int
+    latest_month: date | None
+    latest_cash_flow: str | None
+    income_sources: list[IncomeSourceSchema]
+    spend_by_type: list[SpendTypeSchema]
+
+    @classmethod
+    def from_view(cls, view: ArusKasView) -> ArusKasResponse:
+        return cls(
+            months=[
+                MonthlyCashFlowSchema(
+                    month=m.month,
+                    income=str(m.income),
+                    spend=str(m.spend),
+                    cash_flow=str(m.cash_flow),
+                    savings_rate=(None if m.savings_rate is None else str(m.savings_rate)),
+                )
+                for m in view.months
+            ],
+            headline_savings_rate=(
+                None if view.headline_savings_rate is None else str(view.headline_savings_rate)
+            ),
+            window_months=view.window_months,
+            latest_month=view.latest_month,
+            latest_cash_flow=(
+                None if view.latest_cash_flow is None else str(view.latest_cash_flow)
+            ),
+            income_sources=[
+                IncomeSourceSchema(category_id=s.category_id, label=s.label, amount=str(s.amount))
+                for s in view.income_sources
+            ],
+            spend_by_type=[
+                SpendTypeSchema(type=s.type.value, amount=str(s.amount)) for s in view.spend_by_type
             ],
         )
