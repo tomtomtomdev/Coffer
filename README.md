@@ -113,7 +113,9 @@ npm run dev         # dev server on :5173, proxies /api → http://localhost:800
 ```
 
 Run the API alongside it: `uv run uvicorn coffer.api.app:app --reload` (LAN/VPN only, SPEC §5).
-Serving `web/dist` in production (FastAPI static mount or reverse proxy) is an ops follow-up.
+In **production** there is no Vite: `npm run build`, then point the API at the bundle with
+`COFFER_WEB_DIST_DIR=web/dist` and it serves the SPA on the same origin (SPA deep-link
+fallback; `/api` never shadowed — `coffer/api/static.py`). See [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 ## Development workflow
 
@@ -141,12 +143,18 @@ pyproject.toml   uv deps, ruff, mypy, pytest, import-linter config
 design_handoff_coffer_dashboard/   Frozen hi-fi design + tokens
 ```
 
-## Deployment (planned)
+## Deployment & operations
+
+See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for the full runbook (env reference,
+systemd units, backup/restore, spot check).
 
 - Public surface is the Telegram webhook only (via tunnel, secret-token verified,
   server-side `telegram_user_id` allowlist).
-- Dashboard/API stay on LAN/VPN.
-- Backups: DB + encrypted originals into the existing TrueNAS SCALE + restic pipeline.
+- Dashboard/API stay on LAN/VPN; the API serves the built SPA (`COFFER_WEB_DIST_DIR`).
+- Backups (`scripts/backup.sh`): DB (streamed `pg_dump`) + **encrypted** statement
+  originals into the existing TrueNAS SCALE + restic pipeline, with an encrypted-only
+  preflight audit — the backup never contains a plaintext PDF. Monthly restore drill
+  (`scripts/restore-verify.sh`) + reconciliation spot-check reminder.
 
 ---
 

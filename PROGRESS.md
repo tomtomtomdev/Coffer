@@ -5,7 +5,69 @@
 
 _Last updated: 2026-07-16_
 
-## Done (this session) ✅ — S14 Arus Kas dashboard (§3.5)
+## Done (this session) ✅ — S15 Backup + ops (§7) — **PLAN COMPLETE (S0–S15)**
+The final slice: make the deployment real. Three deliverables — prod static serving of the
+built SPA, the backup/restore pipeline, and the monthly reconciliation spot-check reminder —
+with the security-relevant logic in gate-covered Python and the infra glue in thin shell.
+
+- **Prod static serving — `coffer/api/static.py` (`mount_spa`).** In dev the SPA runs under
+  Vite; in prod there's no Vite, so the API process serves the built `web/dist` on one LAN
+  origin. Mounts `/assets` (Vite's content-hashed bundles) via `StaticFiles`, then a catch-all
+  that returns a real file when one exists else `index.html` (SPA deep-link fallback). The
+  `/api` and `/assets` namespaces are **never shadowed** — matched by the routers/mount
+  registered first, and the catch-all explicitly declines them so an unknown API path 404s
+  (never the SPA shell). Wired into `create_app()` behind an **optional** `COFFER_WEB_DIST_DIR`
+  (guarded on `index.html` existing): unset (dev + every other test) → API-only, unchanged;
+  importing the app still requires no env. **Resolves the standing S11/S15 "serve web/dist" follow-up.**
+- **Backup safety core — `coffer/api/ops.py` (pure, testable).**
+  - **`audit_archive(dir)` — the encrypted-only guard.** Classifies every archive entry:
+    password-protected `.pdf` (reuses `ingestion.decrypt.is_encrypted`; api→ingestion is inward)
+    and Fernet `.pdf.enc` are safe; a **plaintext `.pdf` or any unexpected file** ⇒ `ok=False`.
+    The backup runs this as a preflight and **aborts** before restic sees a byte — the "backup
+    never contains a plaintext PDF" invariant (SPEC §4/§7, CLAUDE.md) enforced in Python, not shell.
+  - **`spot_check_due(last, now, interval=30d)`** — pure predicate for the monthly manual
+    bank-reconciliation reminder (SPEC §7: prompt a spot check rather than present stale numbers).
+  - **`main` CLI** (`python -m coffer.api.ops {audit DIR | spot-check-due MARKER}`) — the thin
+    seam `scripts/backup.sh` calls; exit 0/1 drives the shell. Verified live end-to-end.
+- **`scripts/backup.sh`** — preflight audit → **`pg_dump --format=custom | restic backup --stdin`**
+  (streamed, so **no plaintext dump ever touches local disk**; `password_enc` is already Fernet
+  ciphertext in the DB) → `restic backup "$ARCHIVE_DIR"` (encrypted originals) → `restic forget`
+  retention (7 daily/5 weekly/12 monthly + prune) → spot-check reminder (optional Telegram ping,
+  else logged). All config from env (strips `+psycopg` → libpq URL); refuses to run on a failed audit.
+- **`scripts/restore-verify.sh`** — the DR drill: `restic check` → restore latest DB-dump →
+  `pg_restore --list` (valid custom-format archive) → optional restore into a scratch DB
+  (`COFFER_RESTORE_TEST_DB_URL`) + row count. Never touches the live DB.
+- **`docs/OPERATIONS.md`** — full runbook: env-var reference, systemd service/timer + cron,
+  the build+serve prod flow, backup/restore, the spot check, and the webhook recap. README
+  Deployment section rewritten to point at it; the old "ops follow-up" line for static serving is gone.
+- **Decisions:** (a) security-relevant logic (encrypted-only guard, reminder cadence) lives in
+  gate-covered Python; shell is glue. (b) DB streamed to restic via `--stdin` — consistent with
+  §4 "plaintext never on disk". (c) static mount is env-gated + `index.html`-guarded so tests/dev
+  and app import are unchanged. (d) spot-check state is an ISO-date marker file the operator
+  `date`-stamps after reconciling.
+- **Tests (+22 py):** `test_ops.py` (14 — audit missing/empty/encrypted+at-rest/plaintext-flag/
+  unexpected-file/subdir; spot_check none/within/past/boundary; CLI audit 0-vs-1, spot-check
+  0-vs-1, unknown→2), `test_static.py` (8 — index at `/`, hashed-asset JS mime, root-level file,
+  deep-link→index fallback, `/api` not shadowed→404, no-env→API-only, env-set→mounts, missing-build→no-crash).
+- **Full gate green:** ruff · ruff-format · mypy --strict (91 files) · lint-imports KEPT ·
+  **296 pytest** · alembic no drift (verified on a clean schema — **no schema change**; ops/read-only)
+  ‖ **web** (unchanged this slice): tsc · 37 vitest · vite build. Static behavior verified through
+  the real Starlette ASGI stack via `TestClient`.
+- **⚠ Follow-ups:** (a) **`uvicorn` is the documented ASGI runner but not yet a pinned dep** —
+  couldn't `uv add`/lock it (no network this session); add `uvicorn` to `pyproject.toml` deps when
+  online (docs note this + `uv pip install uvicorn` as the interim). (b) restic/TrueNAS is Tommy's
+  infra — the scripts are `bash -n`-clean and their Python core is verified, but they're **unexercised
+  against the real restic repo** here; run `scripts/restore-verify.sh` once on the box. (c) §3.4
+  bill-due-date card still deferred (placement is Tommy's call). (d) CIMB password still needed to
+  seed its `institution_credential` for encrypted Telegram ingest.
+- **Committed to `main`** (`S15: …`), not pushed.
+- **Next:** **All plan slices S0–S15 are done.** What remains is operational + needs Tommy, not code:
+  seed the CIMB `institution_credential` (password), decide §3.4 bill-card placement, set the real
+  Telegram `setWebhook` (secret token) behind the tunnel, run the backup + restore-verify on the
+  TrueNAS box, and add the `uvicorn` dependency once online. v2 backlog (SPEC §6): LLM-assisted
+  categorizer, budgets/goals, notifications, multi-currency, portfolio corp-action tags.
+
+## Done (prev session) ✅ — S14 Arus Kas dashboard (§3.5)
 The cash-flow screen — the **fourth and final frozen tab**, and the last of Phase C's dashboards.
 Read-only, same read-half pattern as S11/S12 (DashboardReader method + endpoint + self-fetching
 view). The S8 `cash_flow_summary` already did the monthly income−spend + savings-rate math; S14

@@ -224,9 +224,22 @@ budgets/goals, notifications, multi-currency.
   green; alembic no drift (no schema change — read-only over existing tables).
 - **Depends on:** S8.
 
-### S15 · Backup + ops ⬜
-- Add DB + **encrypted** originals to the existing TrueNAS SCALE + restic pipeline; monthly
-  spot-check reminder (SPEC §7).
+### S15 · Backup + ops ✅
+- **Prod static serving** (`coffer/api/static.py` `mount_spa`): the API serves the built
+  `web/dist` on one LAN origin — `/assets` via `StaticFiles`, catch-all SPA deep-link fallback,
+  `/api` never shadowed. Env-gated on `COFFER_WEB_DIST_DIR` (unset → API-only, unchanged).
+  Resolves the standing S11 follow-up.
+- **Backup safety core** (`coffer/api/ops.py`, pure + gate-covered): `audit_archive` (encrypted-only
+  guard — plaintext/unexpected file aborts the backup, reusing `ingestion.decrypt.is_encrypted`),
+  `spot_check_due` (30-day reconciliation cadence), and a `main` CLI the shell calls.
+- **`scripts/backup.sh`**: preflight audit → `pg_dump --format=custom | restic backup --stdin`
+  (no plaintext dump on disk) → restic backup of the encrypted originals → forget/prune retention
+  → spot-check reminder. **`scripts/restore-verify.sh`**: restic check + restore + `pg_restore --list`
+  (+ optional scratch-DB restore). **`docs/OPERATIONS.md`**: full runbook (env, systemd, backup/restore,
+  spot check, webhook). Reuses the existing TrueNAS SCALE + restic pipeline; never backs up plaintext.
+- **Done:** 296 pytest (+22: `test_ops.py`, `test_static.py`) + full gate green; alembic no drift
+  (no schema change). **Follow-up:** add `uvicorn` to `pyproject.toml` deps (couldn't lock offline);
+  run the scripts against the real restic repo on the box.
 - **Depends on:** S4.
 
 ---
