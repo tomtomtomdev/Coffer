@@ -9,8 +9,11 @@ Real financial data lives here, so **security and correctness are non-negotiable
 statement passwords are never logged, plaintext PDFs never touch disk, and every parser
 raises rather than emitting partial data.
 
-> **Status:** backend foundations in progress. See [`PROGRESS.md`](PROGRESS.md) for the
-> live state of every slice.
+> **Status:** feature-complete — all planned slices **S0–S15** are done: six statement
+> parsers, the full ingestion pipeline, web + Telegram upload, all four Bahasa dashboards,
+> and the backup/ops pipeline. What remains is operator setup, not code (see
+> [`docs/OPERATIONS.md`](docs/OPERATIONS.md)). [`PROGRESS.md`](PROGRESS.md) has the live
+> state of every slice.
 
 ---
 
@@ -79,6 +82,21 @@ All six statement/portfolio parsers are built and reconcile against real (anonym
 
 ## Getting started
 
+### One command — install + run
+
+```bash
+scripts/dev.sh
+```
+
+Installs every dependency (Python via `uv`, the SPA via `npm`), runs the database
+migrations, then starts the API (`:8000`) and the Vite dev server (`:5173`, which proxies
+`/api`). Ctrl-C stops both. Needs [`uv`](https://docs.astral.sh/uv/), Node.js, and a
+reachable Postgres — the script prints a Docker one-liner if `COFFER_DATABASE_URL` is
+unset, and auto-generates a dev `COFFER_ENCRYPTION_KEY` into a gitignored `.env`. LAN/VPN
+only (SPEC §5). Re-run with `--no-install` for a faster restart.
+
+### Manual setup
+
 Requires **Python 3.12** and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
@@ -134,7 +152,11 @@ See [`CLAUDE.md`](CLAUDE.md) for the complete operating rules.
 
 ```
 coffer/          Application package (the six Clean Architecture layers above)
+web/             React + Vite + TypeScript dashboard SPA (consumes the read API)
 tests/           Pytest suite + anonymized fixtures (tests/fixtures/)
+scripts/         dev.sh (install + run), backup.sh, restore-verify.sh
+migrations/      Alembic migrations
+docs/            OPERATIONS.md — deployment runbook
 spec.md          Source of truth for behavior
 PLAN.md          Execution order (slices S0–S15)
 PROGRESS.md      Live state — read first, update last
