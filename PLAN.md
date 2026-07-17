@@ -238,8 +238,8 @@ budgets/goals, notifications, multi-currency.
   (+ optional scratch-DB restore). **`docs/OPERATIONS.md`**: full runbook (env, systemd, backup/restore,
   spot check, webhook). Reuses the existing TrueNAS SCALE + restic pipeline; never backs up plaintext.
 - **Done:** 296 pytest (+22: `test_ops.py`, `test_static.py`) + full gate green; alembic no drift
-  (no schema change). **Follow-up:** add `uvicorn` to `pyproject.toml` deps (couldn't lock offline);
-  run the scripts against the real restic repo on the box.
+  (no schema change). `uvicorn` is now a pinned runtime dep. **Follow-up:** run the scripts
+  against the real restic repo on the box.
 - **Depends on:** S4.
 
 ---

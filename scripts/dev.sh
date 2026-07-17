@@ -109,10 +109,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# uvicorn is not a pinned project dependency yet (see docs/OPERATIONS.md); `uv run
-# --with uvicorn` provides it ephemerally without mutating the locked environment.
 log "starting API on http://127.0.0.1:$API_PORT (uvicorn --reload)"
-uv run --with uvicorn uvicorn coffer.api.app:app --host 127.0.0.1 --port "$API_PORT" --reload &
+uv run uvicorn coffer.api.app:app --host 127.0.0.1 --port "$API_PORT" --reload &
 API_PID=$!
 
 log "starting web dev server (vite → http://localhost:5173, proxies /api → :$API_PORT)"

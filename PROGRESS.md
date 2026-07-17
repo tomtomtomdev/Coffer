@@ -3,9 +3,20 @@
 > Persistent memory across cold sessions. Read this first. Update it last.
 > Format: what's done, what's in progress, what's next, and any live decisions/blockers.
 
-_Last updated: 2026-07-16_
+_Last updated: 2026-07-17_
 
-## Done (this session) ✅ — S15 Backup + ops (§7) — **PLAN COMPLETE (S0–S15)**
+## Done (this session) ✅ — post-plan cleanup: pin `uvicorn` runtime dep
+Plan is complete (S0–S15). This session closed the one remaining Tommy-independent code
+follow-up from S15: **`uvicorn` is now a pinned runtime dependency** (`uv add uvicorn` →
+`uvicorn==0.51.0` in `pyproject.toml` + `uv.lock`). Verified the ASGI app loads under the
+pinned server (`uvicorn.importer` resolves `coffer.api.app:app` → FastAPI). Cleared the now-stale
+interim workarounds: `docs/OPERATIONS.md` ("not yet pinned / `uv pip install uvicorn`" note →
+"pinned; `uv sync` installs it") and `scripts/dev.sh` (`uv run --with uvicorn …` → plain
+`uv run uvicorn …`; `bash -n` clean). Dependency-only change (zero Python source touched), so
+the 296-test suite is unaffected. Static gate re-run green: ruff · ruff-format · lint-imports
+KEPT · mypy --strict (91 files). **Remaining follow-ups all need Tommy / his box** (below).
+
+## Done (prev session) ✅ — S15 Backup + ops (§7) — **PLAN COMPLETE (S0–S15)**
 The final slice: make the deployment real. Three deliverables — prod static serving of the
 built SPA, the backup/restore pipeline, and the monthly reconciliation spot-check reminder —
 with the security-relevant logic in gate-covered Python and the infra glue in thin shell.
@@ -53,9 +64,8 @@ with the security-relevant logic in gate-covered Python and the infra glue in th
   **296 pytest** · alembic no drift (verified on a clean schema — **no schema change**; ops/read-only)
   ‖ **web** (unchanged this slice): tsc · 37 vitest · vite build. Static behavior verified through
   the real Starlette ASGI stack via `TestClient`.
-- **⚠ Follow-ups:** (a) **`uvicorn` is the documented ASGI runner but not yet a pinned dep** —
-  couldn't `uv add`/lock it (no network this session); add `uvicorn` to `pyproject.toml` deps when
-  online (docs note this + `uv pip install uvicorn` as the interim). (b) restic/TrueNAS is Tommy's
+- **⚠ Follow-ups:** (a) ~~`uvicorn` not a pinned dep~~ **DONE (2026-07-17):** pinned as
+  `uvicorn>=0.51.0`; docs/dev.sh workarounds removed. (b) restic/TrueNAS is Tommy's
   infra — the scripts are `bash -n`-clean and their Python core is verified, but they're **unexercised
   against the real restic repo** here; run `scripts/restore-verify.sh` once on the box. (c) §3.4
   bill-due-date card still deferred (placement is Tommy's call). (d) CIMB password still needed to
@@ -63,8 +73,8 @@ with the security-relevant logic in gate-covered Python and the infra glue in th
 - **Committed to `main`** (`S15: …`), not pushed.
 - **Next:** **All plan slices S0–S15 are done.** What remains is operational + needs Tommy, not code:
   seed the CIMB `institution_credential` (password), decide §3.4 bill-card placement, set the real
-  Telegram `setWebhook` (secret token) behind the tunnel, run the backup + restore-verify on the
-  TrueNAS box, and add the `uvicorn` dependency once online. v2 backlog (SPEC §6): LLM-assisted
+  Telegram `setWebhook` (secret token) behind the tunnel, and run the backup + restore-verify on
+  the TrueNAS box. (`uvicorn` dependency — DONE 2026-07-17.) v2 backlog (SPEC §6): LLM-assisted
   categorizer, budgets/goals, notifications, multi-currency, portfolio corp-action tags.
 
 ## Done (prev session) ✅ — S14 Arus Kas dashboard (§3.5)

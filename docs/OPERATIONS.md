@@ -34,8 +34,8 @@ In development the SPA runs under Vite (`npm run dev`, proxying `/api` → `:800
 production there is no Vite: build the bundle once and let the API process serve it, so
 the dashboard and API share one LAN origin.
 
-> The ASGI server (`uvicorn`) is not yet a pinned project dependency — install it in the
-> deployment environment (`uv pip install uvicorn`) until it is added to `pyproject.toml`.
+> The ASGI server is `uvicorn`, a pinned project dependency — `uv sync` installs it; no
+> extra step in the deployment environment.
 
 ```bash
 # Build the SPA (produces web/dist)
