@@ -5,6 +5,42 @@
 
 _Last updated: 2026-07-19_
 
+## Done (this session) ✅ — CIMB credential seed CLI (`coffer.api.seed_credential`) — build + test
+Tommy: "cimb credential: build + test it." Built the operational tool that stores a household's
+`static` statement password Fernet-encrypted at rest, so **encrypted statements ingest unattended
+via Telegram** (web upload already prompts at runtime; this closes the S2/§8 operational remainder).
+
+- **`coffer/api/seed_credential.py`** — a Humble-Object CLI mirroring `api/ops.py`:
+  `python -m coffer.api.seed_credential --household-id N --institution cimb [--scheme static]
+  [--replace]`. Pieces:
+  - **`resolve_secret(scheme, raw)`** (pure) — `static`/`derived` require a non-empty secret;
+    `per_statement` forbids one (it stores nothing). Raises → CLI exit 2.
+  - **`seed_credential(households, credentials, …)`** — check-before-add (there is **no DB unique
+    constraint** on `(household, institution)`, so a naive re-add would duplicate). Returns
+    `CREATED` / `REPLACED` / `EXISTS` / `NO_HOUSEHOLD`. `--replace` = delete-then-add.
+  - **`main(argv)`** — validates input *before* touching env/DB (fails fast), then env → session →
+    `seed_credential` → commit only on CREATED/REPLACED. Exit codes: 0 ok · 2 bad input · 3 exists
+    (use `--replace`) · 4 no such household.
+  - **Security:** the password is **never a CLI arg** (getpass no-echo prompt, or `COFFER_SEED_SECRET`
+    env for automation), **never logged/printed** (success/error messages omit it), stored only as
+    Fernet ciphertext under `COFFER_ENCRYPTION_KEY` (must match the app's key).
+- **`SqlInstitutionCredentialRepo.delete(credential_id)`** — new concrete-only method (not on the
+  domain Protocol; nothing in the domain deletes credentials) enabling the `--replace` delete-then-add.
+- **Tests (+9 py, `test_seed_credential.py`):** core over real Postgres (created / no-household /
+  exists-unchanged / replace-overwrites-without-duplicating / per_statement-stores-nothing), the pure
+  `resolve_secret` rules, and two `main` input-validation exits that fail before any DB and **never
+  echo the secret**. Red-green honored (the pure/core fns didn't exist first).
+- **Live-smoked** the real `main` end-to-end against a throwaway Postgres DB (dummy secret, not the
+  real password): create→exit 0 (row is ciphertext, decrypts back, scheme=static) · re-run→exit 3
+  unchanged · `--replace`→exit 0 (still one row, new secret) · unknown household→exit 4 · dropped the
+  scratch DB. Documented in **`docs/OPERATIONS.md` §7**.
+- **Full gate green:** ruff · ruff-format · mypy --strict (96 files) · lint-imports KEPT · **318
+  pytest** (+9) · **alembic no drift** (verified on a fresh migrated DB — no schema change; `delete`
+  is a method, the table/columns pre-existed).
+- **⚠ Operational remainder (needs Tommy's box):** actually run the seed on the box with the real
+  CIMB password (`070587`, static) + the household id, using the app's `COFFER_ENCRYPTION_KEY`.
+- **Committed to `main`**, not pushed.
+
 ## Done (this session) ✅ — S1/S2 reality-check: parsers re-validated on fresh real statements + stale docs corrected
 Tommy provided real statements to "unblock the S1 parsers" and the CIMB password. Investigating
 first (per CLAUDE.md — surface contradictions before acting) revealed a **doc/reality mismatch**:
@@ -25,9 +61,9 @@ newer months of the same accounts → a genuine **re-validation** pass.
   - ✅ `bca_tapres` — Stockbit RDN `4996…` (Apr-26): empty month (0 txns), **reconciled** (the
     empty-statement edge from `c63c11a`).
   - ✅ `ajaib_portfolio` — `106FXF` (2026-06-30): 12 holdings + cash, structural gate passed.
-  - ⚠️ `stockbit_soa` — **not re-validated**: the path given for "stockbit" (`~/Desktop/spec.md`)
-    is an unrelated document (a "Driftline" interview-demo spec), not a Stockbit statement. Need a
-    correct fresh Stockbit SOA to re-validate.
+  - ✅ `stockbit_soa` — `0088552` SOA (2026-06-30): 2p, 6 holdings + cash, structural gate passed.
+    (First path given, `~/Desktop/spec.md`, was an unrelated "Driftline" demo doc; Tommy re-sent the
+    correct PDF and it validates.) **All 6 parsers now re-validated on fresh real data.**
 - **CIMB scheme confirmed (Tommy): `static`, does not rotate.** → **S2 marked ✅** in PLAN
   (static path done, scheme resolved, end-to-end decrypt+parse re-proven this session via the BCA CC
   PDF which is also static). Operational remainder: seed the CIMB `institution_credential` row on the
@@ -46,8 +82,8 @@ newer months of the same accounts → a genuine **re-validation** pass.
   sample + the operational/cloud-backup items remain).
 - **No code changed** in this entry (parsers already green) → gate unaffected: 57 parser tests green;
   full suite/ruff/mypy/lint-imports/alembic untouched. Committed to `main` (docs only), not pushed.
-- **Next:** (1) get a correct fresh **Stockbit** statement to re-validate `stockbit_soa` (the only
-  parser not re-checked this round); (2) **cloud backup** — Tommy picks a backend (B2 recommended) +
+- **Next:** (1) ~~Stockbit re-validation~~ **DONE** (correct PDF re-sent; all 6 parsers green);
+  (2) **cloud backup** — Tommy picks a backend (B2 recommended) +
   creates the bucket/keys, then `restic init`; runbook is written (`OPERATIONS.md` §3a), scripts need
   no change; (3) optionally seed the CIMB `institution_credential` (needs the box + Fernet key —
   password entered at runtime, never committed). Could also commit the fresh months as **regression

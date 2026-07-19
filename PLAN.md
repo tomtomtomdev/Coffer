@@ -35,11 +35,10 @@ budgets/goals, notifications, multi-currency.
   market_value == printed Total (**soft** lot-continuity — corp actions are legitimate).
 - **Tests:** 57 fixture-based tests (anonymized text; amounts/dates real so reconciliation is
   genuine), incl. tampered-amount → raises. All green.
-- **Re-validated 2026-07-19** against fresh real statements (newer months of the same accounts):
-  BCA CC (May-26), BCA savings (Jun-26), both RDN Tapres (Jun/Apr-26), Ajaib (2026-06-30) all
-  parse + reconcile. **Stockbit re-validation still pending a correct fresh sample** (the file
-  provided was an unrelated doc). Deferred S1 tail (not blocking): Stockbit cash-SOA dividend
-  rows → `transactions` (§3.5 income); portfolio parsers currently extract holdings + cash only.
+- **Re-validated 2026-07-19** against fresh real statements (newer months of the same accounts) —
+  **all 6 parse + reconcile:** BCA CC (May-26), BCA savings (Jun-26), both RDN Tapres (Jun/Apr-26),
+  Ajaib (2026-06-30), Stockbit SOA (2026-06-30). Deferred S1 tail (not blocking): Stockbit cash-SOA
+  dividend rows → `transactions` (§3.5 income); portfolio parsers currently extract holdings + cash only.
 
 ### S2 · Decryption stage ✅ (static path; scheme confirmed 2026-07-19)
 - `pikepdf` in-memory decrypt → `BytesIO` → parser (`coffer/ingestion/decrypt.py`). Plaintext
@@ -260,11 +259,13 @@ budgets/goals, notifications, multi-currency.
 - ✅ **§3.4 bill-aggregator placement** — RESOLVED: shipped as the **Tagihan Jatuh Tempo card on
   Ringkasan** (S16, 2026-07-18).
 - ✅ **Frontend framework** — CONFIRMED by Tommy: **React + Vite + TS + Recharts**.
-- ✅ **Real samples / S1 parsers** — all 6 parsers built + fixture-tested; re-validated 2026-07-19
-  against fresh real statements (BCA CC, BCA savings, both RDN Tapres, Ajaib). **Only open item:**
-  a correct fresh **Stockbit** statement to re-validate `stockbit_soa` (last sample path was wrong).
-- **Operational (need Tommy's box, not code):** seed the CIMB credential; set the real Telegram
-  `setWebhook` (secret token) behind the tunnel; **backup — explore a cloud target** (Tommy: no
-  TrueNAS/restic pipeline for now → replace §7's restic-on-TrueNAS assumption with a cloud plan).
+- ✅ **Real samples / S1 parsers** — all 6 parsers built + fixture-tested; **re-validated 2026-07-19
+  against fresh real statements** (BCA CC, BCA savings, both RDN Tapres, Ajaib, **and Stockbit**) —
+  all parse + reconcile. No open sample items.
+- **Operational (need Tommy's box, not code):** (a) **seed the CIMB credential** — tool now built:
+  `python -m coffer.api.seed_credential --household-id N --institution cimb` (password `070587`,
+  static; runbook in `docs/OPERATIONS.md` §7). (b) set the real Telegram `setWebhook` (secret token)
+  behind the tunnel. (c) **backup → cloud** — runbook written (`OPERATIONS.md` §3a: B2/R2/rclone);
+  Tommy picks a backend + creates the bucket/keys.
 - **CIMB edge cases** (parser follow-up on S1, if they arise): a statement with cash advance /
   more cards / more pages.

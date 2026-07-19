@@ -151,6 +151,15 @@ class SqlInstitutionCredentialRepo:
         )
         return mappers.credential_to_domain(row, self._cipher) if row else None
 
+    def delete(self, credential_id: int) -> None:
+        """Remove a credential row. Used by the seed CLI's ``--replace`` path: there is
+        no DB unique constraint on ``(household, institution)`` to upsert against, so a
+        replace is delete-then-add. A no-op if the id is already gone."""
+        row = self._session.get(InstitutionCredentialRow, credential_id)
+        if row is not None:
+            self._session.delete(row)
+            self._session.flush()
+
 
 class SqlStatementRepo:
     def __init__(self, session: Session) -> None:

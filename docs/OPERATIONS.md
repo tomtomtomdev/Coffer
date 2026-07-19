@@ -209,3 +209,33 @@ curl -fsS "https://api.telegram.org/bot${COFFER_TELEGRAM_BOT_TOKEN}/setWebhook" 
   --data-urlencode "url=https://<public-tunnel-host>/api/telegram/webhook" \
   --data-urlencode "secret_token=${COFFER_TELEGRAM_WEBHOOK_SECRET}"
 ```
+
+---
+
+## 7. Seeding a statement-password credential (encrypted statements)
+
+An encrypted statement can only be ingested **unattended** (via the Telegram bot) if the
+household's `static` password is stored, Fernet-encrypted at rest, in
+`institution_credential`. (Web upload prompts for the password at runtime, so this is only
+needed for the Telegram path.) Seed it with:
+
+```bash
+# Needs COFFER_DATABASE_URL + COFFER_ENCRYPTION_KEY (the SAME key the app runs with).
+# The password is prompted with no echo — NEVER pass it as a CLI argument.
+python -m coffer.api.seed_credential --household-id <ID> --institution cimb
+#   → prompts: "Statement password for cimb (static): "
+
+# Non-interactive (automation): supply it via the environment instead of the prompt.
+COFFER_SEED_SECRET='…' python -m coffer.api.seed_credential --household-id <ID> --institution cimb
+```
+
+- **`--institution`** defaults to `cimb`; `--scheme` defaults to `static` (`derived` /
+  `per_statement` also accepted — `per_statement` stores no secret and takes no password).
+- **`--replace`** overwrites an existing credential for the pair (there is no DB unique
+  constraint, so without it a second run is refused rather than duplicating the row).
+- **Exit codes:** `0` created/replaced · `2` bad input · `3` already exists (use `--replace`)
+  · `4` no such household.
+- **Security:** the password is never a CLI argument, never logged, and only ever stored as
+  Fernet ciphertext. It must be encrypted with the same `COFFER_ENCRYPTION_KEY` the running
+  API uses, or the app cannot decrypt it. **CIMB's password is `static` and does not rotate**,
+  so this is a one-time seed.
