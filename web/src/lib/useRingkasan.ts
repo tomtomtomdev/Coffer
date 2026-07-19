@@ -1,9 +1,16 @@
-import { fetchArusKas, fetchBelanja, fetchPortofolio, fetchRingkasan } from "../api/client";
+import {
+  fetchArusKas,
+  fetchBelanja,
+  fetchPortofolio,
+  fetchRingkasan,
+  fetchTagihan,
+} from "../api/client";
 import type {
   ArusKasResponse,
   BelanjaResponse,
   PortofolioResponse,
   RingkasanResponse,
+  TagihanResponse,
 } from "../api/types";
 import { type AsyncState, useApi } from "./useApi";
 
@@ -25,4 +32,9 @@ export function useBelanja(householdId: number, reloadKey = 0): AsyncState<Belan
 /** Fetch the §3.5 Arus Kas payload for a household. */
 export function useArusKas(householdId: number): AsyncState<ArusKasResponse> {
   return useApi((signal) => fetchArusKas(householdId, signal), householdId);
+}
+
+/** Fetch the §3.4 Tagihan (bill due-date) payload for the Ringkasan card. */
+export function useTagihan(householdId: number): AsyncState<TagihanResponse> {
+  return useApi((signal) => fetchTagihan(householdId, signal), householdId);
 }

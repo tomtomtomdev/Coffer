@@ -49,12 +49,12 @@ Definitions (documented so the numbers are auditable):
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from coffer.domain.entities import Account, Category, Statement, Transaction
+from coffer.domain.entities import Account, Category, Member, Statement, Transaction
 from coffer.domain.enums import AccountType, Cadence, CategorySource, CategoryType
 from coffer.domain.networth import Bucket, bucket_of, compute_snapshot
 from coffer.domain.repositories import (
@@ -913,6 +913,116 @@ def compute_ringkasan(
         member_series=member_series,
         accounts=account_rows,
         kpis=kpis,
+    )
+
+
+# ── §3.4 Bill due-date aggregator read model ──────────────────────────────────────────
+@dataclass(frozen=True)
+class BillDue:
+    """One credit-card bill for the §3.4 "Tagihan Jatuh Tempo" card.
+
+    ``statement_balance`` is the full new-billing balance (Tagihan Baru — the liability
+    magnitude, i.e. the statement's ``closing_balance``); ``minimum_payment`` is Pembayaran
+    Minimum (``None`` if the statement did not report one). ``days_remaining`` is signed —
+    negative once the due date has passed — so the UI can red-flag ``< 3`` days and show an
+    overdue bill. ``institution`` / ``account_type`` / ``account_number_masked`` are passed
+    raw so the web edge composes the card label (as Rincian Akun does), keeping id-ID copy
+    at the UI edge.
+    """
+
+    account_id: int
+    member_id: int
+    member_name: str
+    institution: str
+    account_type: AccountType
+    account_number_masked: str
+    due_date: date
+    days_remaining: int
+    minimum_payment: Decimal | None
+    statement_balance: Decimal
+
+
+@dataclass(frozen=True)
+class TagihanView:
+    """The assembled §3.4 payload: the reference day the countdown is relative to, plus the
+    bills sorted soonest-first."""
+
+    as_of: date
+    bills: list[BillDue]
+
+
+def _latest_billed_statement(statements: Sequence[Statement]) -> Statement | None:
+    """The most recent statement carrying a ``due_date`` (``period_end``-ascending input).
+
+    A credit-card account's bill is its latest *billed* statement; a statement with no
+    ``due_date`` (e.g. a non-CC account, or older data ingested before §3.4) is not a bill.
+    """
+    chosen: Statement | None = None
+    for stmt in statements:
+        if stmt.due_date is not None:
+            chosen = stmt
+    return chosen
+
+
+def bill_due_dates(
+    accounts: Sequence[Account],
+    members: Sequence[Member],
+    statements_by_account: Mapping[int, Sequence[Statement]],
+    *,
+    today: date,
+) -> list[BillDue]:
+    """The §3.4 bill list: every liability (credit-card) account's latest billed statement,
+    sorted ascending by days remaining (soonest first).
+
+    An account that is not a credit card, or has no statement with a ``due_date``,
+    contributes nothing — we never render a bill card without a real due date. ``today`` is
+    injected so the countdown stays pure/deterministic (the api edge passes ``date.today()``).
+    """
+    names = {m.id: m.name for m in members if m.id is not None}
+    bills: list[BillDue] = []
+    for a in accounts:
+        if a.id is None or bucket_of(a.account_type) is not Bucket.LIABILITY:
+            continue
+        stmt = _latest_billed_statement(statements_by_account.get(a.id, ()))
+        if stmt is None or stmt.due_date is None:
+            continue
+        balance = Decimal("0") if stmt.closing_balance is None else stmt.closing_balance
+        bills.append(
+            BillDue(
+                account_id=a.id,
+                member_id=a.member_id,
+                member_name=names.get(a.member_id, ""),
+                institution=a.institution,
+                account_type=a.account_type,
+                account_number_masked=a.account_number_masked,
+                due_date=stmt.due_date,
+                days_remaining=(stmt.due_date - today).days,
+                minimum_payment=stmt.minimum_payment,
+                statement_balance=balance,
+            )
+        )
+    bills.sort(key=lambda b: (b.days_remaining, b.account_id))
+    return bills
+
+
+def compute_tagihan(
+    *,
+    household_id: int,
+    today: date,
+    accounts: AccountRepo,
+    members: MemberRepo,
+    statements: StatementRepo,
+) -> TagihanView:
+    """Repo-driven §3.4 wrapper: gather the household's accounts, members and per-account
+    statements, then delegate to the pure ``bill_due_dates``."""
+    accts = accounts.list_by_household(household_id)
+    membs = members.list_by_household(household_id)
+    statements_by_account: dict[int, list[Statement]] = {
+        a.id: statements.list_by_account(a.id) for a in accts if a.id is not None
+    }
+    return TagihanView(
+        as_of=today,
+        bills=bill_due_dates(accts, membs, statements_by_account, today=today),
     )
 
 

@@ -36,7 +36,7 @@ export function App() {
           ) : state.status === "error" ? (
             <ErrorCard message={state.message} />
           ) : (
-            <Ringkasan data={state.data} onNavigate={select} />
+            <Ringkasan data={state.data} householdId={HOUSEHOLD_ID} onNavigate={select} />
           ))}
         {view === "portfolio" && <Portofolio householdId={HOUSEHOLD_ID} />}
         {view === "spend" && <Belanja householdId={HOUSEHOLD_ID} />}

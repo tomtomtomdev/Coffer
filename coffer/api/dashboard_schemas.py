@@ -11,7 +11,13 @@ from datetime import date
 
 from pydantic import BaseModel
 
-from coffer.domain.read_models import ArusKasView, BelanjaView, PortfolioView, RingkasanView
+from coffer.domain.read_models import (
+    ArusKasView,
+    BelanjaView,
+    PortfolioView,
+    RingkasanView,
+    TagihanView,
+)
 
 
 class GridPointSchema(BaseModel):
@@ -385,5 +391,47 @@ class ArusKasResponse(BaseModel):
             ],
             spend_by_type=[
                 SpendTypeSchema(type=s.type.value, amount=str(s.amount)) for s in view.spend_by_type
+            ],
+        )
+
+
+# ── §3.4 Tagihan (bill due-date aggregator) ──────────────────────────────────────────
+class BillDueSchema(BaseModel):
+    account_id: int
+    member_id: int
+    member_name: str
+    institution: str
+    account_type: str  # AccountType value, e.g. "cimb_credit_card"
+    account_number_masked: str
+    due_date: date
+    days_remaining: int  # signed — negative once the due date has passed
+    minimum_payment: str | None  # null when the statement reported no minimum
+    statement_balance: str  # full new-billing balance (Tagihan Baru)
+
+
+class TagihanResponse(BaseModel):
+    """The §3.4 bill due-date aggregator payload for the Ringkasan card."""
+
+    as_of: date  # the reference day the days-remaining countdown is relative to
+    bills: list[BillDueSchema]
+
+    @classmethod
+    def from_view(cls, view: TagihanView) -> TagihanResponse:
+        return cls(
+            as_of=view.as_of,
+            bills=[
+                BillDueSchema(
+                    account_id=b.account_id,
+                    member_id=b.member_id,
+                    member_name=b.member_name,
+                    institution=b.institution,
+                    account_type=b.account_type.value,
+                    account_number_masked=b.account_number_masked,
+                    due_date=b.due_date,
+                    days_remaining=b.days_remaining,
+                    minimum_payment=(None if b.minimum_payment is None else str(b.minimum_payment)),
+                    statement_balance=str(b.statement_balance),
+                )
+                for b in view.bills
             ],
         )

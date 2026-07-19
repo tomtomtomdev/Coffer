@@ -229,6 +229,7 @@ class IngestStatement:
         # 7. Persist: archive the encrypted original, add the statement, its (categorized)
         #    transactions and any holdings.
         period_start, period_end, closing = _statement_boundaries(parsed)
+        due_date, minimum_payment = _bill_summary(parsed)
         encrypted_file_path = self.archive.store(
             raw_bytes=raw_bytes, was_encrypted=pdf.was_encrypted
         )
@@ -244,6 +245,8 @@ class IngestStatement:
                 parser_version=parsed.parser_version,
                 is_encrypted=pdf.was_encrypted,
                 closing_balance=closing,
+                due_date=due_date,
+                minimum_payment=minimum_payment,
                 encrypted_file_path=encrypted_file_path,
                 uploaded_by_member_id=uploaded_by_member_id,
             )
@@ -363,3 +366,14 @@ def _statement_boundaries(
     if isinstance(parsed, ParsedPortfolio):
         return parsed.as_of, parsed.as_of, parsed.total_market_value()
     return parsed.period_start, parsed.period_end, parsed.closing_balance
+
+
+def _bill_summary(
+    parsed: ParsedStatement | ParsedPortfolio,
+) -> tuple[datetime.date | None, Decimal | None]:
+    """(due_date, minimum_payment) for the persisted ``statement`` — the credit-card bill
+    fields (SPEC §3.4 due-date aggregator). Only a ``ParsedStatement`` carries them, and a
+    savings statement leaves them None; a portfolio snapshot has no bill."""
+    if isinstance(parsed, ParsedStatement):
+        return parsed.due_date, parsed.minimum_payment
+    return None, None

@@ -7,9 +7,10 @@ import type {
   BelanjaResponse,
   PortofolioResponse,
   RingkasanResponse,
+  TagihanResponse,
 } from "./api/types";
 
-const { SAMPLE, PORTFOLIO, BELANJA, ARUSKAS } = vi.hoisted(() => {
+const { SAMPLE, PORTFOLIO, BELANJA, ARUSKAS, TAGIHAN } = vi.hoisted(() => {
   const sample: RingkasanResponse = {
     as_of: "2026-06-30",
     net_worth: "943000000",
@@ -165,7 +166,42 @@ const { SAMPLE, PORTFOLIO, BELANJA, ARUSKAS } = vi.hoisted(() => {
       { type: "one_off", amount: "2300000" },
     ],
   };
-  return { SAMPLE: sample, PORTFOLIO: portfolio, BELANJA: belanja, ARUSKAS: arusKas };
+  const tagihan: TagihanResponse = {
+    as_of: "2026-07-19",
+    bills: [
+      {
+        account_id: 3,
+        member_id: 2,
+        member_name: "Priskila",
+        institution: "cimb",
+        account_type: "cimb_credit_card",
+        account_number_masked: "****0003",
+        due_date: "2026-07-22",
+        days_remaining: 3,
+        minimum_payment: "50000",
+        statement_balance: "838303",
+      },
+      {
+        account_id: 2,
+        member_id: 1,
+        member_name: "Tommy",
+        institution: "bca",
+        account_type: "bca_credit_card",
+        account_number_masked: "****0002",
+        due_date: "2026-07-28",
+        days_remaining: 9,
+        minimum_payment: null,
+        statement_balance: "2177067",
+      },
+    ],
+  };
+  return {
+    SAMPLE: sample,
+    PORTFOLIO: portfolio,
+    BELANJA: belanja,
+    ARUSKAS: arusKas,
+    TAGIHAN: tagihan,
+  };
 });
 
 vi.mock("./api/client", () => ({
@@ -173,6 +209,7 @@ vi.mock("./api/client", () => ({
   fetchPortofolio: vi.fn(async () => PORTFOLIO),
   fetchBelanja: vi.fn(async () => BELANJA),
   fetchArusKas: vi.fn(async () => ARUSKAS),
+  fetchTagihan: vi.fn(async () => TAGIHAN),
   recategorizeTransaction: vi.fn(async () => ({
     transaction_id: 77,
     category_id: 1,
@@ -205,6 +242,21 @@ describe("App / Ringkasan", () => {
 
     // Month chip reflects the latest data month.
     expect(screen.getByText("Juni 2026")).toBeInTheDocument();
+  });
+
+  it("shows the §3.4 bill due-date card below the hero", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { level: 1 });
+
+    // The card title + soonest bill (holder, countdown, minimum) all render.
+    expect(await screen.findByText("Tagihan Jatuh Tempo")).toBeInTheDocument();
+    expect(screen.getByText("Kartu CIMB Niaga")).toBeInTheDocument();
+    expect(screen.getByText(/Priskila · Jatuh tempo 22 Jul 2026/)).toBeInTheDocument();
+    expect(screen.getByText("3 hari lagi")).toBeInTheDocument();
+    expect(screen.getByText("Min. Rp 50.000")).toBeInTheDocument();
+    // The second card (no minimum reported) still renders its balance.
+    expect(screen.getByText("Kartu BCA")).toBeInTheDocument();
+    expect(screen.getByText("9 hari lagi")).toBeInTheDocument();
   });
 
   it("switches to the Arus Kas tab and back", async () => {

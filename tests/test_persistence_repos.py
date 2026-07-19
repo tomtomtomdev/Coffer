@@ -261,6 +261,58 @@ def test_statement_closing_balance_round_trips_exact(session: Session) -> None:
     assert repo.list_by_account(aid)[0].closing_balance == Decimal("1271334.69")
 
 
+def test_statement_bill_fields_round_trip(session: Session) -> None:
+    # SPEC §3.4 credit-card bill summary: due_date + minimum_payment survive as
+    # an exact date / Decimal; both nullable (a savings statement carries neither).
+    hid = _seed_household(session)
+    mid = _seed_member(session, hid)
+    aid = _seed_account(session, mid)
+    repo = SqlStatementRepo(session)
+    stmt = repo.add(
+        Statement(
+            account_id=aid,
+            period_start=datetime.date(2026, 3, 1),
+            period_end=datetime.date(2026, 3, 17),
+            file_hash="bill" + "a" * 60,
+            content_hash="bill" + "b" * 36,
+            uploaded_via=UploadedVia.WEB,
+            uploaded_at=_TS,
+            parser_version="cimb_kartu_kredit@1",
+            is_encrypted=True,
+            closing_balance=Decimal("838303.83"),
+            due_date=datetime.date(2026, 4, 6),
+            minimum_payment=Decimal("50000.00"),
+        )
+    )
+    assert stmt.id is not None
+    got = repo.get(stmt.id)
+    assert got is not None
+    assert got.due_date == datetime.date(2026, 4, 6)
+    assert got.minimum_payment == Decimal("50000.00")
+    assert isinstance(got.minimum_payment, Decimal)
+
+    # A statement with no bill (e.g. savings) persists None for both columns.
+    bare = repo.add(
+        Statement(
+            account_id=aid,
+            period_start=datetime.date(2026, 4, 1),
+            period_end=datetime.date(2026, 4, 30),
+            file_hash="bare" + "a" * 60,
+            content_hash="bare" + "b" * 36,
+            uploaded_via=UploadedVia.WEB,
+            uploaded_at=_TS,
+            parser_version="bca_tahapan@1",
+            is_encrypted=True,
+            closing_balance=Decimal("611000000"),
+        )
+    )
+    assert bare.id is not None
+    bare_got = repo.get(bare.id)
+    assert bare_got is not None
+    assert bare_got.due_date is None
+    assert bare_got.minimum_payment is None
+
+
 def test_transaction_round_trip_preserves_decimal(session: Session) -> None:
     hid = _seed_household(session)
     mid = _seed_member(session, hid)

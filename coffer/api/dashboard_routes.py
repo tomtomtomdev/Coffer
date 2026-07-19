@@ -7,6 +7,8 @@ on one side and the web edge's ``id-ID`` formatting on the other).
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends
 
 from coffer.api.dashboard import DashboardReader
@@ -15,6 +17,7 @@ from coffer.api.dashboard_schemas import (
     BelanjaResponse,
     PortofolioResponse,
     RingkasanResponse,
+    TagihanResponse,
 )
 from coffer.api.dependencies import get_dashboard_reader
 
@@ -58,3 +61,14 @@ async def get_arus_kas(
     headline savings rate + latest-month cash flow, and the latest month's income-source
     and spend-type breakdown lists."""
     return ArusKasResponse.from_view(reader.arus_kas(household_id))
+
+
+@router.get("/tagihan/{household_id}", response_model=TagihanResponse)
+async def get_tagihan(
+    household_id: int,
+    reader: DashboardReader = Depends(get_dashboard_reader),
+) -> TagihanResponse:
+    """The §3.4 bill due-date aggregator: each credit card's latest bill — holder, due date,
+    days remaining (relative to today), minimum payment, full statement balance — soonest
+    first. Feeds the Tagihan Jatuh Tempo card on Ringkasan (below the hero)."""
+    return TagihanResponse.from_view(reader.tagihan(household_id, today=date.today()))

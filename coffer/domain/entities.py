@@ -91,6 +91,11 @@ class Statement:
     #              mirroring RDN savings account — never added here, see recompute).
     # Populated by the persist stage (S9); None only for a statement with no balance.
     closing_balance: Decimal | None = None
+    # Credit-card bill summary (SPEC §3.4 due-date aggregator); None for non-CC statements.
+    #   due_date        = Tgl. Jatuh Tempo / TANGGAL JATUH TEMPO
+    #   minimum_payment = Pembayaran Minimum
+    due_date: datetime.date | None = None
+    minimum_payment: Decimal | None = None
     encrypted_file_path: str | None = None
     uploaded_by_member_id: int | None = None
     id: int | None = None

@@ -5,6 +5,8 @@ in the domain). Constructed per-request in the composition root (``dependencies`
 
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy.orm import Session
 
 from coffer.domain.read_models import (
@@ -12,9 +14,11 @@ from coffer.domain.read_models import (
     BelanjaView,
     PortfolioView,
     RingkasanView,
+    TagihanView,
     compute_arus_kas,
     compute_belanja,
     compute_ringkasan,
+    compute_tagihan,
     portfolio_consolidation,
 )
 from coffer.persistence.repositories import (
@@ -67,4 +71,13 @@ class DashboardReader:
             accounts=SqlAccountRepo(self._session),
             transactions=SqlTransactionRepo(self._session),
             categories=SqlCategoryRepo(self._session),
+        )
+
+    def tagihan(self, household_id: int, *, today: date) -> TagihanView:
+        return compute_tagihan(
+            household_id=household_id,
+            today=today,
+            accounts=SqlAccountRepo(self._session),
+            members=SqlMemberRepo(self._session),
+            statements=SqlStatementRepo(self._session),
         )

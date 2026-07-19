@@ -93,6 +93,9 @@ class StatementRow(Base):
     # The account's net-worth value as of this statement (SPEC §3.1 carry-forward);
     # nullable for a statement that carries no balance. See recompute.py for semantics.
     closing_balance: Mapped[Decimal | None] = mapped_column(MONEY)
+    # Credit-card bill summary (SPEC §3.4 due-date aggregator); null for non-CC statements.
+    due_date: Mapped[datetime.date | None] = mapped_column(Date)
+    minimum_payment: Mapped[Decimal | None] = mapped_column(MONEY)
     # The ORIGINAL (still-encrypted) PDF is retained here; plaintext never on disk.
     encrypted_file_path: Mapped[str | None] = mapped_column(Text)
 

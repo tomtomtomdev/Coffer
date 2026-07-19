@@ -131,6 +131,8 @@ def statement_to_row(entity: Statement) -> StatementRow:
         parser_version=entity.parser_version,
         is_encrypted=entity.is_encrypted,
         closing_balance=entity.closing_balance,
+        due_date=entity.due_date,
+        minimum_payment=entity.minimum_payment,
         encrypted_file_path=entity.encrypted_file_path,
     )
 
@@ -149,6 +151,8 @@ def statement_to_domain(row: StatementRow) -> Statement:
         parser_version=row.parser_version,
         is_encrypted=row.is_encrypted,
         closing_balance=row.closing_balance,
+        due_date=row.due_date,
+        minimum_payment=row.minimum_payment,
         encrypted_file_path=row.encrypted_file_path,
     )
 

@@ -200,3 +200,22 @@ export interface RecategorizeResponse {
   deactivated_rule_id: number | null;
   created_rule_id: number | null;
 }
+
+// ── §3.4 Tagihan (bill due-date aggregator) ──────────────────────────────────────────
+export interface BillDue {
+  account_id: number;
+  member_id: number;
+  member_name: string;
+  institution: string;
+  account_type: string; // AccountType value, e.g. "cimb_credit_card"
+  account_number_masked: string;
+  due_date: string; // ISO date
+  days_remaining: number; // signed — negative once the due date has passed
+  minimum_payment: string | null; // null when the statement reported no minimum
+  statement_balance: string; // full new-billing balance (Tagihan Baru)
+}
+
+export interface TagihanResponse {
+  as_of: string; // ISO date — the reference day the days-remaining countdown is relative to
+  bills: BillDue[];
+}

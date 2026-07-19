@@ -5,6 +5,7 @@ import type {
   RecategorizeRequest,
   RecategorizeResponse,
   RingkasanResponse,
+  TagihanResponse,
 } from "./types";
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -52,6 +53,11 @@ export function fetchBelanja(householdId: number, signal?: AbortSignal): Promise
 /** §3.5 Arus Kas payload. */
 export function fetchArusKas(householdId: number, signal?: AbortSignal): Promise<ArusKasResponse> {
   return getJson(`/api/dashboard/arus-kas/${householdId}`, signal);
+}
+
+/** §3.4 Tagihan (bill due-date) payload for the Ringkasan card. */
+export function fetchTagihan(householdId: number, signal?: AbortSignal): Promise<TagihanResponse> {
+  return getJson(`/api/dashboard/tagihan/${householdId}`, signal);
 }
 
 /** Tag/Ubah — apply a manual category to a transaction (SPEC §3.3). */

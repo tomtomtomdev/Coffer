@@ -116,6 +116,9 @@ def test_cimb_statement_ingests_persists_and_recomputes(session: Session) -> Non
     assert stored.period_end == datetime.date(2026, 3, 17)
     assert stored.is_encrypted is False
     assert stored.encrypted_file_path == "mem://1"
+    # CC bill summary persisted for the §3.4 due-date aggregator (from the parsed statement).
+    assert stored.due_date == datetime.date(2026, 4, 6)
+    assert stored.minimum_payment == Decimal("50000.00")
 
     # all 8 line items persisted, keyed for dedup, uncategorized (no rules seeded yet).
     txns = SqlTransactionRepo(session).list_by_account(account.id)
