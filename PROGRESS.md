@@ -32,19 +32,26 @@ newer months of the same accounts → a genuine **re-validation** pass.
   (static path done, scheme resolved, end-to-end decrypt+parse re-proven this session via the BCA CC
   PDF which is also static). Operational remainder: seed the CIMB `institution_credential` row on the
   box (password entered at runtime, **never committed**). Web ingest already prompts at runtime.
-- **Backup direction changed (Tommy): no TrueNAS/restic for now → explore cloud backup.** Noted in
-  PLAN open-items; S15's restic-on-TrueNAS scripts stand but the target needs a cloud plan (pending —
-  a research/recommendation task, not yet started).
+- **Backup direction changed (Tommy): no TrueNAS/restic-on-NAS for now → explore cloud backup.**
+  Delivered as **`docs/OPERATIONS.md` §3a "Cloud backup target"**: the S15 scripts are already
+  backend-agnostic (restic `backup|forget|check|restore`), so cloud is a **config change, not code** —
+  and restic's **client-side encryption** means the provider only holds ciphertext (satisfies the
+  encrypted-only invariant; residency moot). Documented three concrete backends — **Backblaze B2
+  (recommended)**, Cloudflare R2 (zero-egress), rclone→Google Drive/Dropbox/OneDrive — with exact env
+  config + a 3-2-1 / protect-the-restic-password resilience note. (I asked which backend; Tommy was
+  away, so best-judgment = document all three and leave the pick to him — no account setup forced.)
 - **Docs corrected (the actual deliverable):** PLAN.md S1 `🚧`→`✅` (all 6 parsers, accurate status +
   fresh-validation note), S2 `⛔`→`✅` (scheme resolved), and the "Open items" section rewritten
   (CIMB scheme / §3.4 placement / framework / S1 samples all marked RESOLVED; only a correct Stockbit
   sample + the operational/cloud-backup items remain).
 - **No code changed** in this entry (parsers already green) → gate unaffected: 57 parser tests green;
   full suite/ruff/mypy/lint-imports/alembic untouched. Committed to `main` (docs only), not pushed.
-- **Next:** (1) get a correct fresh **Stockbit** statement to re-validate `stockbit_soa`;
-  (2) **cloud-backup exploration** — compare options + recommend, then adapt `scripts/backup.sh`
-  target (currently restic→TrueNAS); (3) optionally seed the CIMB credential (needs the box + Fernet
-  key). Could also commit the fresh months as **regression fixtures** (anonymized) if wanted.
+- **Next:** (1) get a correct fresh **Stockbit** statement to re-validate `stockbit_soa` (the only
+  parser not re-checked this round); (2) **cloud backup** — Tommy picks a backend (B2 recommended) +
+  creates the bucket/keys, then `restic init`; runbook is written (`OPERATIONS.md` §3a), scripts need
+  no change; (3) optionally seed the CIMB `institution_credential` (needs the box + Fernet key —
+  password entered at runtime, never committed). Could also commit the fresh months as **regression
+  fixtures** (anonymized) if wanted.
 
 ## Done (this session) ✅ — S14 follow-up: savings-rate per-point `%` labels (Arus Kas)
 Plan is complete (S0–S16); with no todo slice left and no new samples/password/infra input

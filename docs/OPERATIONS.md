@@ -69,8 +69,9 @@ WantedBy=multi-user.target
 
 ## 3. Backup — `scripts/backup.sh`
 
-Adds the two things that hold the ledger to the **existing** TrueNAS SCALE + restic
-repo (reuse, don't rebuild — SPEC §7):
+Adds the two things that hold the ledger to a **restic** repo — a local disk (e.g. a
+TrueNAS SCALE box) **or a cloud bucket** (see §3a; the script is backend-agnostic, so the
+target is pure config). Either way the two items backed up are:
 
 1. **Preflight audit** — `python -m coffer.api.ops audit "$ARCHIVE_DIR"`. Aborts the run
    if any plaintext PDF or unexpected file is in the archive. The backup **never**
@@ -104,6 +105,63 @@ WantedBy=timers.target
 # …or plain cron:
 30 2 * * *  root  . /etc/coffer/coffer.env; /opt/coffer/scripts/backup.sh >> /var/log/coffer-backup.log 2>&1
 ```
+
+### 3a. Cloud backup target (no local NAS)
+
+`backup.sh` / `restore-verify.sh` only ever call `restic backup|forget|check|restore` — all
+**backend-agnostic**. Moving the repo to the cloud is therefore a **config change, not a code
+change**: point `RESTIC_REPOSITORY` at a cloud URL and add that backend's credentials to the
+`EnvironmentFile` (`/etc/coffer/coffer.env`, mode `600` — never the repo). Nothing in the
+pipeline changes.
+
+Why this is safe for real financial data: **restic encrypts client-side.** The repo is
+encrypted with `RESTIC_PASSWORD_FILE` *before* a byte leaves the box, so the provider only
+ever stores ciphertext — this satisfies Coffer's encrypted-only invariant (SPEC §4/§7) by
+construction, and makes cloud **data residency largely moot** (no provider can read the ledger
+regardless of region). At a two-person household's scale (statements + a Postgres dump — well
+under 1 GB even with history), storage cost is pennies-to-zero on any option below.
+
+**One-time, for any backend:** create the bucket/remote, export the vars, then
+`restic init` once to create the encrypted repo. Use the **same** `RESTIC_PASSWORD_FILE` you
+already use — and see the resilience note at the end.
+
+**Option A — Backblaze B2** (recommended: simplest restic-native path; 10 GB free tier):
+```bash
+# coffer.env (mode 600)
+export RESTIC_REPOSITORY="b2:coffer-backup:"      # your B2 bucket name
+export B2_ACCOUNT_ID="<application keyID>"
+export B2_ACCOUNT_KEY="<application key>"
+export RESTIC_PASSWORD_FILE=/etc/coffer/restic.pass
+# one-time: restic init
+```
+
+**Option B — Cloudflare R2** (S3-compatible; 10 GB free; **zero egress fees** → cheapest restores):
+```bash
+export RESTIC_REPOSITORY="s3:https://<accountid>.r2.cloudflarestorage.com/coffer-backup"
+export AWS_ACCESS_KEY_ID="<R2 access key id>"
+export AWS_SECRET_ACCESS_KEY="<R2 secret access key>"
+export AWS_DEFAULT_REGION="auto"                  # R2 ignores region; restic's S3 client wants one set
+export RESTIC_PASSWORD_FILE=/etc/coffer/restic.pass
+# one-time: restic init
+```
+
+**Option C — reuse an account you already pay for** (Google Drive / Dropbox / OneDrive, via rclone):
+```bash
+rclone config                                     # one-time: create a remote, e.g. "gdrive" (OAuth)
+export RESTIC_REPOSITORY="rclone:gdrive:coffer-backup"
+export RESTIC_PASSWORD_FILE=/etc/coffer/restic.pass
+# one-time: restic init   (restic shells out to rclone; the rclone token lives in ~/.config/rclone)
+```
+
+**Verify** the same way regardless of backend: `scripts/restore-verify.sh` (§4) runs
+`restic check` + a real restore against whatever `RESTIC_REPOSITORY` points at.
+
+> **Resilience (read this).** Dropping the NAS makes the cloud repo your **only** copy, so:
+> 1. **Back up the restic repo password** (the contents of `RESTIC_PASSWORD_FILE`) in a
+>    password manager. Lose it and the backup is unrecoverable — there is no reset.
+> 2. Prefer keeping **one more copy** occasionally (an external drive, or a second
+>    `restic backup` to a different repo) so a single provider outage/lockout isn't total loss
+>    — the 3-2-1 rule. `backup.sh` can be run a second time against a second `RESTIC_REPOSITORY`.
 
 ---
 
