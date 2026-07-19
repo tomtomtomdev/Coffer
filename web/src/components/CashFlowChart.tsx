@@ -2,6 +2,7 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  LabelList,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -10,7 +11,12 @@ import {
 } from "recharts";
 
 import type { ArusKasResponse } from "../api/types";
-import { cashFlowChartData, incomeAxisMax, savingsAxisMax } from "../lib/cashflow";
+import {
+  cashFlowChartData,
+  incomeAxisMax,
+  savingsAxisMax,
+  savingsPointLabel,
+} from "../lib/cashflow";
 import { fmtIDR, fmtPct, fmtShort } from "../lib/format";
 
 const INK = "#1c1d26";
@@ -43,6 +49,31 @@ function ChartLegend({ items }: { items: LegendItem[] }) {
 /** Tooltip: rupiah for the bars, a percent for the savings line. */
 function fmtValue(value: number, name: string): string {
   return name === "Tingkat menabung" ? fmtPct(value, 1) : fmtIDR(value);
+}
+
+/** The per-point `%` above each savings dot (MEASUREMENTS §Cash Flow: 10.5px / weight 600
+ *  ink, 9px above the dot). Renders nothing at a line gap (a zero-income month). */
+function SavingsRateLabel(props: {
+  x?: number | string;
+  y?: number | string;
+  value?: number | string | null;
+}) {
+  const { x, y, value } = props;
+  const text = savingsPointLabel(value == null ? null : Number(value));
+  if (text === null || x === undefined || y === undefined) return null;
+  return (
+    <text
+      x={Number(x)}
+      y={Number(y) - 9}
+      textAnchor="middle"
+      fill={INK}
+      fontSize={10.5}
+      fontWeight={600}
+      fontFamily="IBM Plex Mono"
+    >
+      {text}
+    </text>
+  );
 }
 
 /** The §3.5 income-vs-spend grouped bars with the savings-rate line on a secondary axis. */
@@ -97,7 +128,9 @@ export function CashFlowChart({ data }: { data: ArusKasResponse }) {
             connectNulls={false}
             dot={{ r: 3.5, fill: "#fff", stroke: INK, strokeWidth: 1.5 }}
             activeDot={{ r: 4.5 }}
-          />
+          >
+            <LabelList dataKey="savings" content={SavingsRateLabel} />
+          </Line>
         </ComposedChart>
       </ResponsiveContainer>
       <ChartLegend

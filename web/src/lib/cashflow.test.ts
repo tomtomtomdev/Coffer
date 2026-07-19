@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { MonthlyCashFlow } from "../api/types";
-import { cashFlowChartData, incomeAxisMax, savingsAxisMax, spendTypeLabel } from "./cashflow";
+import {
+  cashFlowChartData,
+  incomeAxisMax,
+  savingsAxisMax,
+  savingsPointLabel,
+  spendTypeLabel,
+} from "./cashflow";
 
 function month(m: string, income: string, spend: string, savings: string | null): MonthlyCashFlow {
   return {
@@ -52,6 +58,17 @@ describe("axis maxima", () => {
     // a very high rate is clamped to 1 (100%).
     const hot = cashFlowChartData([month("2026-06-01", "100", "5", "0.95")], 6);
     expect(savingsAxisMax(hot)).toBe(1);
+  });
+});
+
+describe("savingsPointLabel", () => {
+  it("formats a savings fraction as an integer percent (per-point line label)", () => {
+    expect(savingsPointLabel(0.4285714)).toBe("43%");
+    expect(savingsPointLabel(0.4)).toBe("40%");
+  });
+
+  it("returns null at a line gap (a zero-income month) so no label is drawn", () => {
+    expect(savingsPointLabel(null)).toBeNull();
   });
 });
 

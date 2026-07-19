@@ -4,7 +4,7 @@
  * unit-testable. Bahasa copy lives here (at the UI edge, per CLAUDE.md).
  */
 import type { MonthlyCashFlow } from "../api/types";
-import { monthShort, num } from "./format";
+import { fmtPct, monthShort, num } from "./format";
 
 export interface CashFlowDatum {
   label: string; // month short, e.g. "Jun"
@@ -42,6 +42,12 @@ export function savingsAxisMax(rows: CashFlowDatum[]): number {
   const max = rows.reduce((a, r) => Math.max(a, r.savings ?? 0), 0);
   if (max <= 0) return 0.1;
   return Math.min(1, max * 1.25);
+}
+
+/** The per-point `%` text drawn above each savings-rate dot (MEASUREMENTS §Cash Flow).
+ *  `null` at a line gap (a zero-income month) so no label is placed on the break. */
+export function savingsPointLabel(savings: number | null): string | null {
+  return savings === null ? null : fmtPct(savings, 0);
 }
 
 const SPEND_TYPE_LABEL: Record<string, string> = {

@@ -5,7 +5,46 @@
 
 _Last updated: 2026-07-19_
 
-## Done (this session) ✅ — S16 Bill due-date card (§3.4) — the deferred aggregator, now built
+## Done (this session) ✅ — S14 follow-up: savings-rate per-point `%` labels (Arus Kas)
+Plan is complete (S0–S16); with no todo slice left and no new samples/password/infra input
+available, this session closed the one **design-completion** follow-up that needs no external
+input and touches no financial-correctness path — the frozen design (MEASUREMENTS §Cash Flow,
+line 87) shows a `%` label above each savings-rate dot, which the S14 chart was missing.
+
+- **Pure helper — `web/src/lib/cashflow.ts` `savingsPointLabel(savings)`**: a fraction → integer
+  `%` via the id-ID `fmtPct` (e.g. `0.4285714 → "43%"`); **`null` at a line gap** (a zero-income
+  month, where the savings line already breaks) so no stray label is drawn on the break. Kept in
+  `lib/` (tested, Bahasa/`Intl` at the edge) like `spendTypeLabel`, not inline in the component.
+- **Chart wiring — `web/src/components/CashFlowChart.tsx`**: a `<LabelList content={SavingsRateLabel}>`
+  child on the savings `<Line>`. `SavingsRateLabel` renders a `<text>` at the dot's `x` / `y − 9`,
+  `textAnchor=middle`, ink (`#1c1d26`), **10.5px / weight 600**, IBM Plex Mono (matching the charts'
+  other numeric labels) — exactly the MEASUREMENTS spec. Coerces Recharts' `string | number` `x`/`y`
+  and returns `null` for a null/gap point (double-guarded via the pure helper). The 1.25× headroom in
+  `savingsAxisMax` leaves room above the top dot for its label. **Presentation only** — no backend,
+  no schema, no axis-scale change (the design's fixed 0–80% axis is a separate, deliberately-unchanged
+  decision; the axis stays data-driven-with-headroom as shipped in S14).
+- **Tests (+2 ts):** `cashflow.test.ts` `savingsPointLabel` (integer-percent format + null-at-gap).
+  Red-first confirmed (`savingsPointLabel is not a function`) → green. The chart label itself isn't
+  asserted in vitest (Recharts renders 0-dim in jsdom — same as the tide/cashflow charts already);
+  correctness rests on the unit-tested pure helper + tsc + build.
+- **Web gate green:** tsc --noEmit · **43 vitest** (+2) · vite build (bundle unchanged — no new dep;
+  the ~163 kB Recharts gzip is pre-existing). **No Python touched** → ruff/mypy/lint-imports/309
+  pytest unaffected; alembic unchanged (no schema change).
+- **Decision — best-judgment pick while Tommy was away.** The direction question (code follow-ups /
+  unblock parsers / deployment / start v2) went unanswered; chose the lowest-risk, fully-verifiable,
+  design-mandated item and deliberately avoided anything needing a UX decision (review-queue
+  pagination, amount-only generalization UI), real samples (S1 parsers), the CIMB password (S2 /
+  `derived`/`per_statement` decrypt), or a schema add (corp-action detection).
+- **Committed to `main`** (`S14 follow-up: …`), not pushed.
+- **Next (unchanged — all needs Tommy):** seed the CIMB `institution_credential` (password +
+  whether it rotates); set the real Telegram `setWebhook` (secret token) behind the tunnel; run
+  `backup.sh` + `restore-verify.sh` once against the real restic/TrueNAS repo; provide anonymized
+  samples to unblock the remaining S1 parsers (BCA CC / savings / Ajaib / Stockbit). Other code-only
+  follow-ups still open (no input needed): review-queue pagination, amount-only generalization UI,
+  machine-readable Bahasa anomaly reason, masked-account auto-disambiguation. v2 backlog (SPEC §6):
+  LLM categorizer, budgets/goals, notifications, multi-currency, portfolio corp-action tags.
+
+## Done (prev session) ✅ — S16 Bill due-date card (§3.4) — the deferred aggregator, now built
 Resolved the long-deferred §3.4 "no home" feature end-to-end. Placement was locked 2026-07-18
 (**Tagihan Jatuh Tempo card on Ringkasan, below the hero / above the KPI row**); this session built
 the full vertical slice so the data the CC parsers already extract (due date + minimum) now flows
