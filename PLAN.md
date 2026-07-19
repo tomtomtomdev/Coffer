@@ -22,26 +22,36 @@ budgets/goals, notifications, multi-currency.
 - Move existing `parsers/` + `tests/` under the layout; add the four docs.
 - **Done when:** `pytest`, `ruff`, `mypy`, and `lint-imports` all pass in CI on an empty-ish tree.
 
-### S1 · Parser layer + statement contract 🚧
-- `ParsedStatement` / `ParsedTransaction` / error types — ✅ (`parsers/statement_types.py`).
-- `cimb_kartu_kredit.py` — ✅ built, 7 fixture tests green, reconciles on the real sample.
-- ⬜ `bca_kartu_kredit.py` (line items + summary, same contract; needs a real BCA CC sample).
-- ⬜ `bca_tahapan.py`, `bca_tapres.py` (savings; extract `counterparty_name`/`counterparty_acct`
-  from transfer descriptions; continuity `saldo_awal + Σmutasi == saldo_akhir`).
-- ⬜ `ajaib_portfolio.py`, `stockbit_soa.py` (holdings; **soft** lot-continuity — corp actions).
-- **Test (red first):** per parser, a fixture-based test asserting summary fields, txn
-  split, date/year inference, Decimal amounts, and a *tampered-amount → reconciliation raises* case.
-- **Done when:** every provided format parses + reconciles; no real PII/PDF committed.
-- **Blocked items** need real samples (BCA CC, BCA savings, Ajaib, Stockbit).
+### S1 · Parser layer + statement contract ✅ (all 6 parsers built + fixture-tested)
+- `ParsedStatement` / `ParsedTransaction` / `ParsedHolding` / `ParsedPortfolio` / error types —
+  ✅ (`parsers/statement_types.py`).
+- `cimb_kartu_kredit.py` — ✅ built against the real MC GOLD sample; reconciles.
+- `bca_kartu_kredit.py` — ✅ multi-card (VISA + BCA Everyday under one NOMOR CUSTOMER); reconciles
+  ΣSALDO SEBELUMNYA + Σcharges − Σcredits == TAGIHAN BARU.
+- `bca_tahapan.py`, `bca_tapres.py` — ✅ savings; thin adapters over the shared
+  `_bca_rekening_koran.py` engine; extract structured counterparty from transfer descriptions;
+  continuity `saldo_awal + Σcr − Σdb == saldo_akhir`; empty-month edge handled.
+- `ajaib_portfolio.py`, `stockbit_soa.py` — ✅ holdings + broker cash; structural gate = Σ
+  market_value == printed Total (**soft** lot-continuity — corp actions are legitimate).
+- **Tests:** 57 fixture-based tests (anonymized text; amounts/dates real so reconciliation is
+  genuine), incl. tampered-amount → raises. All green.
+- **Re-validated 2026-07-19** against fresh real statements (newer months of the same accounts):
+  BCA CC (May-26), BCA savings (Jun-26), both RDN Tapres (Jun/Apr-26), Ajaib (2026-06-30) all
+  parse + reconcile. **Stockbit re-validation still pending a correct fresh sample** (the file
+  provided was an unrelated doc). Deferred S1 tail (not blocking): Stockbit cash-SOA dividend
+  rows → `transactions` (§3.5 income); portfolio parsers currently extract holdings + cash only.
 
-### S2 · Decryption stage ⛔ (needs CIMB password scheme)
-- `pikepdf` in-memory decrypt → `BytesIO` → parser. Plaintext never on disk.
+### S2 · Decryption stage ✅ (static path; scheme confirmed 2026-07-19)
+- `pikepdf` in-memory decrypt → `BytesIO` → parser (`coffer/ingestion/decrypt.py`). Plaintext
+  never on disk; the password is never logged. 6 tests.
 - `institution_credential (password_enc, password_scheme[static|derived|per_statement])`.
 - Detect encryption, resolve password by scheme, on failure surface "🔒 needs password".
-- **Test:** encrypt a fixture PDF locally with a known password → assert decrypt→parse round-trips;
-  wrong password raises and is not logged.
-- **Blocker:** which scheme CIMB uses (SPEC §8). Build the `static` path now; wire `derived`/
-  `per_statement` once Tommy confirms. Verify end-to-end against one *still-locked* CIMB PDF.
+- **Scheme confirmed (Tommy, 2026-07-19): CIMB = `static`, does not rotate.** `derived`/
+  `per_statement` remain unwired (no such institution yet). Verified end-to-end this session:
+  the real BCA CC PDF (also `static`) decrypts in memory + parses + reconciles.
+- **Remaining (operational, needs Tommy's box):** seed the CIMB `institution_credential` row
+  (Fernet-encrypted password, entered at runtime — never committed) so encrypted CIMB ingests
+  unattended via Telegram. Web ingest already prompts for the password at runtime.
 
 ### S3 · Validation gate ✅
 - Generalize the parser-level reconcile into a pipeline stage: schema check, balance
@@ -244,11 +254,17 @@ budgets/goals, notifications, multi-currency.
 
 ---
 
-## Open items blocking specific slices (need Tommy)
-- **CIMB password scheme** → unblocks S2 end-to-end (SPEC §8). You unlocked the sample; the password + whether it changes monthly is all that's needed.
-- **§3.4 bill-aggregator placement** (card on Ringkasan vs. 5th tab) → S11 shipped without it
-  (insertion point left on Ringkasan); confirm placement to add the bill due-date card.
-- **Frontend framework** — chosen by best-judgment while Tommy was away: **React + Vite + TS +
-  Recharts** (SPEC-recommended). Flag if SvelteKit is preferred (backend API is unaffected).
-- **Real samples**: BCA CC, BCA savings, Ajaib, Stockbit → unblock the remaining S1 parsers.
-- **CIMB edge cases**: a statement with cash advance / multi-card / multi-page → parser follow-up on S1.
+## Open items (status as of 2026-07-19)
+- ✅ **CIMB password scheme** — RESOLVED: `static`, does not rotate (password held by Tommy;
+  not committed). Operational remainder: seed the `institution_credential` row on the box.
+- ✅ **§3.4 bill-aggregator placement** — RESOLVED: shipped as the **Tagihan Jatuh Tempo card on
+  Ringkasan** (S16, 2026-07-18).
+- ✅ **Frontend framework** — CONFIRMED by Tommy: **React + Vite + TS + Recharts**.
+- ✅ **Real samples / S1 parsers** — all 6 parsers built + fixture-tested; re-validated 2026-07-19
+  against fresh real statements (BCA CC, BCA savings, both RDN Tapres, Ajaib). **Only open item:**
+  a correct fresh **Stockbit** statement to re-validate `stockbit_soa` (last sample path was wrong).
+- **Operational (need Tommy's box, not code):** seed the CIMB credential; set the real Telegram
+  `setWebhook` (secret token) behind the tunnel; **backup — explore a cloud target** (Tommy: no
+  TrueNAS/restic pipeline for now → replace §7's restic-on-TrueNAS assumption with a cloud plan).
+- **CIMB edge cases** (parser follow-up on S1, if they arise): a statement with cash advance /
+  more cards / more pages.

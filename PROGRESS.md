@@ -5,6 +5,47 @@
 
 _Last updated: 2026-07-19_
 
+## Done (this session) ✅ — S1/S2 reality-check: parsers re-validated on fresh real statements + stale docs corrected
+Tommy provided real statements to "unblock the S1 parsers" and the CIMB password. Investigating
+first (per CLAUDE.md — surface contradictions before acting) revealed a **doc/reality mismatch**:
+S1 is *already complete*. Git history (`973a1f9`…`c63c11a`, all `S1:`) + the PROGRESS tail
+("**S1 COMPLETE — all 6 parsers built**", line ~805) + **57 green parser tests** all confirm the
+BCA/Ajaib/Stockbit parsers were built long ago against real→anonymized fixtures. Yet PLAN.md and
+every recent entry (S9–S16) kept repeating "blocked on samples / provide samples to unblock S1" —
+**stale and wrong** (it misled last turn's summary). So the fresh files aren't unblockers; they're
+newer months of the same accounts → a genuine **re-validation** pass.
+
+- **Re-validated the existing parsers against fresh REAL statements** (in-memory decrypt/extract via
+  a scratchpad script; nothing plaintext written on success; scratchpad cleaned; passwords via env,
+  never logged/committed):
+  - ✅ `bca_kartu_kredit` — BCA CC (May-26, encrypted w/ static pw): 3p, 37 txns, due-date + Tagihan
+    Baru extracted, **reconciled**.
+  - ✅ `bca_tahapan` — BCA savings `0160…` (Jun-26): 6p, 61 txns, **reconciled**.
+  - ✅ `bca_tapres` — Ajaib RDN `4958…` (Jun-26): 7 txns, **reconciled**.
+  - ✅ `bca_tapres` — Stockbit RDN `4996…` (Apr-26): empty month (0 txns), **reconciled** (the
+    empty-statement edge from `c63c11a`).
+  - ✅ `ajaib_portfolio` — `106FXF` (2026-06-30): 12 holdings + cash, structural gate passed.
+  - ⚠️ `stockbit_soa` — **not re-validated**: the path given for "stockbit" (`~/Desktop/spec.md`)
+    is an unrelated document (a "Driftline" interview-demo spec), not a Stockbit statement. Need a
+    correct fresh Stockbit SOA to re-validate.
+- **CIMB scheme confirmed (Tommy): `static`, does not rotate.** → **S2 marked ✅** in PLAN
+  (static path done, scheme resolved, end-to-end decrypt+parse re-proven this session via the BCA CC
+  PDF which is also static). Operational remainder: seed the CIMB `institution_credential` row on the
+  box (password entered at runtime, **never committed**). Web ingest already prompts at runtime.
+- **Backup direction changed (Tommy): no TrueNAS/restic for now → explore cloud backup.** Noted in
+  PLAN open-items; S15's restic-on-TrueNAS scripts stand but the target needs a cloud plan (pending —
+  a research/recommendation task, not yet started).
+- **Docs corrected (the actual deliverable):** PLAN.md S1 `🚧`→`✅` (all 6 parsers, accurate status +
+  fresh-validation note), S2 `⛔`→`✅` (scheme resolved), and the "Open items" section rewritten
+  (CIMB scheme / §3.4 placement / framework / S1 samples all marked RESOLVED; only a correct Stockbit
+  sample + the operational/cloud-backup items remain).
+- **No code changed** in this entry (parsers already green) → gate unaffected: 57 parser tests green;
+  full suite/ruff/mypy/lint-imports/alembic untouched. Committed to `main` (docs only), not pushed.
+- **Next:** (1) get a correct fresh **Stockbit** statement to re-validate `stockbit_soa`;
+  (2) **cloud-backup exploration** — compare options + recommend, then adapt `scripts/backup.sh`
+  target (currently restic→TrueNAS); (3) optionally seed the CIMB credential (needs the box + Fernet
+  key). Could also commit the fresh months as **regression fixtures** (anonymized) if wanted.
+
 ## Done (this session) ✅ — S14 follow-up: savings-rate per-point `%` labels (Arus Kas)
 Plan is complete (S0–S16); with no todo slice left and no new samples/password/infra input
 available, this session closed the one **design-completion** follow-up that needs no external
