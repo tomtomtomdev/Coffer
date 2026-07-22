@@ -2,9 +2,9 @@
 #
 # Coffer — one-step local install + run (development).
 #
-# Installs every dependency (Python via uv, the SPA via npm), runs the database
-# migrations, then starts the API and the web dev server together and streams both
-# logs. Ctrl-C stops both.
+# Installs every dependency (Python via uv, the SPA via npm), creates the database
+# if it doesn't exist yet, runs the database migrations, then starts the API and the
+# web dev server together and streams both logs. Ctrl-C stops both.
 #
 #   * API  → uvicorn on 127.0.0.1:8000  (--reload)
 #   * UI   → Vite    on localhost:5173  (proxies /api → :8000, per web/vite.config.ts)
@@ -89,6 +89,80 @@ if [[ -z "${COFFER_DATABASE_URL:-}" ]]; then
   export COFFER_DATABASE_URL="$DEFAULT_DB_URL"
   log "COFFER_DATABASE_URL unset — using dev default: $DEFAULT_DB_URL"
   log "  need a Postgres? run:  $DOCKER_PG"
+fi
+
+# ── Database — create it if missing ───────────────────────────────────────────────
+# On a fresh machine the target DB may not exist yet: native Postgres won't
+# auto-create it the way the Docker one-liner (POSTGRES_DB) does. Create it in-process
+# via psycopg (a project dep — no psql/createdb client needed) by connecting to the
+# server's maintenance `postgres` database. Idempotent: a no-op when the DB exists.
+ensure_database() {
+  uv run python - <<'PY'
+import os
+import sys
+
+import psycopg
+from sqlalchemy.engine import make_url
+
+url = make_url(os.environ["COFFER_DATABASE_URL"])
+name = url.database or ""
+if not name or '"' in name:
+    print(f"refusing to create database with unsafe/empty name {name!r}", file=sys.stderr)
+    sys.exit(1)
+
+conn = {
+    k: v
+    for k, v in dict(host=url.host, port=url.port, user=url.username, password=url.password).items()
+    if v is not None
+}
+
+def connect(dbname, autocommit=False):
+    return psycopg.connect(dbname=dbname, autocommit=autocommit, **conn)
+
+# Already there? Then this is a no-op.
+try:
+    connect(name).close()
+    print(f"database {name!r} already exists")
+    sys.exit(0)
+except psycopg.OperationalError as exc:
+    # A missing DB is the case we handle; anything else means the server is unreachable.
+    if f'database "{name}" does not exist' not in str(exc):
+        print(f"Postgres not reachable: {str(exc).strip().splitlines()[0]}", file=sys.stderr)
+        sys.exit(3)
+
+# Missing → create it via the maintenance database.
+try:
+    admin = connect("postgres", autocommit=True)
+except psycopg.OperationalError as exc:
+    print(
+        f"cannot reach maintenance db to create {name!r}: {str(exc).strip().splitlines()[0]}",
+        file=sys.stderr,
+    )
+    sys.exit(3)
+try:
+    with admin.cursor() as cur:
+        cur.execute(f'CREATE DATABASE "{name}"')
+    print(f"created database {name!r}")
+except psycopg.errors.DuplicateDatabase:
+    print(f"database {name!r} already exists (created concurrently)")
+except Exception as exc:  # e.g. the role lacks CREATEDB privilege
+    print(f"failed to create database {name!r}: {exc}", file=sys.stderr)
+    sys.exit(1)
+finally:
+    admin.close()
+PY
+}
+
+log "ensuring database exists"
+set +e
+ENSURE_OUT="$(ensure_database 2>&1)"; ENSURE_RC=$?
+set -e
+[[ -n "$ENSURE_OUT" ]] && printf '%s\n' "$ENSURE_OUT" | sed 's/^/[coffer-dev]   /'
+if [[ "$ENSURE_RC" -eq 3 ]]; then
+  die "Postgres is not reachable at COFFER_DATABASE_URL.
+       start one with:  $DOCKER_PG"
+elif [[ "$ENSURE_RC" -ne 0 ]]; then
+  die "could not ensure the database exists (see message above)"
 fi
 
 # ── Migrate ──────────────────────────────────────────────────────────────────────
