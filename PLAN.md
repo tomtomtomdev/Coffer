@@ -103,11 +103,19 @@ budgets/goals, notifications, multi-currency.
   caller's (S9) job via `matched_rule_id`.
 - **Depends on:** S4, S5.
 
-### S7 · Net-worth snapshot recompute ⬜
-- Carry-forward month-end grid (SPEC §3.1); event-driven recompute on ingest; handle out-of-order/
-  backfill; **serialized per household** (single-writer/lock).
-- **Test:** async period ends align to grid; backfilled Feb-after-Mar updates only Feb; two
-  concurrent ingests don't corrupt the snapshot.
+### S7 · Net-worth snapshot recompute ✅
+- Pure repo-driven recompute stage (`coffer/ingestion/recompute.py`): `compute_snapshot`
+  (month-end grid carry-forward; buckets by account_type into cash/liability/portfolio;
+  net = cash + portfolio − liability), `affected_grids` (event-driven backfill window),
+  `recompute_for_statement` (ingest hot path) + `recompute_all` (rebuild); **serialized per
+  household** via `HouseholdRecomputeLock` (`InProcessRecomputeLock`; pg advisory lock for
+  multi-process). Added nullable `statement.closing_balance` (§3.1 carry-forward needs the most
+  recent statement balance) via Alembic `741f49a1c0c3`; `alembic check` shows no drift.
+- **RDN↔broker-cash double-count resolved by definition:** `portfolio_total` = holdings market
+  value only (§3.1); broker cash is counted once via the mirroring BCA RDN savings account.
+- **Done:** async period ends align to one grid; carry-forward spans gaps; backfilled
+  Feb-after-Mar updates only Feb; same-household recompute serializes while distinct households
+  proceed; RDN not double-counted. 21 tests (incl. one Postgres integration); full gate green.
 - **Depends on:** S4.
 
 ### S8 · Spend + cash-flow read models ✅
