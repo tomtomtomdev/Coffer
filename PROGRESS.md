@@ -37,10 +37,14 @@ was one week stale. Nothing was silently assumed — every number below was re-r
     concurrent create. Shell-only, no Python source touched → gate unaffected.
   - **`4152748` `docs: mark S7 done in PLAN.md`** — S7 was still `⬜` in PLAN though it had been
     complete on `main` for weeks (same class of stale-doc bug as the 2026-07-19 S1/S2 correction).
-- **⚠ Branch/ordering notes:** (a) **`main` is 2 commits behind** `claude/progress-check-nw3z3n`
-  (the branch holds `f7aa514` + `4152748`); the branch is in sync with its remote. (b) The two
-  commits' author dates are **out of order** vs. topology (HEAD `f7aa514` = Jul-22, its parent
-  `4152748` = Jul-25) — cosmetic, from a cherry-pick/rebase; no action needed.
+- **⚠ Branch/ordering notes:** (a) `f7aa514` + `4152748` were **already on `origin/main`** — my
+  local `main` ref was stale (no fetch at session start), which briefly made it look as though the
+  branch held them exclusively. Corrected on inspection: the only commits `origin/main` lacked were
+  this session's two docs commits, so **merging was a clean fast-forward** (done at Tommy's request;
+  `main` → `7ef9be5`). Lesson for future cold sessions: **`git fetch` before comparing refs.**
+  (b) The two commits' author dates are **out of order** vs. topology (`f7aa514` = Jul-22, its parent
+  `4152748` = Jul-25) — cosmetic, from a cherry-pick/rebase; no action needed. (c) A sibling remote
+  branch `claude/check-state-zddzv6` exists at `4152748` — **no unique commits**, nothing to salvage.
 - **`scripts/dev.sh` live-smoked on this cold container** (the first real end-to-end exercise of
   the `f7aa514` auto-create step): one command → `uv sync` + `npm install` → dev
   `COFFER_ENCRYPTION_KEY` generated into the gitignored `.env` → **`created database 'coffer'`**
