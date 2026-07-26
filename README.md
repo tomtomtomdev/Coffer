@@ -9,8 +9,9 @@ Real financial data lives here, so **security and correctness are non-negotiable
 statement passwords are never logged, plaintext PDFs never touch disk, and every parser
 raises rather than emitting partial data.
 
-> **Status:** feature-complete — all planned slices **S0–S15** are done: six statement
-> parsers, the full ingestion pipeline, web + Telegram upload, all four Bahasa dashboards,
+> **Status:** feature-complete — all planned slices **S0–S16** are done: six statement
+> parsers (all re-validated against fresh real statements, 2026-07), the full ingestion
+> pipeline, web + Telegram upload, all four Bahasa dashboards, the §3.4 bill due-date card,
 > and the backup/ops pipeline. What remains is operator setup, not code (see
 > [`docs/OPERATIONS.md`](docs/OPERATIONS.md)). [`PROGRESS.md`](PROGRESS.md) has the live
 > state of every slice.
@@ -88,9 +89,9 @@ All six statement/portfolio parsers are built and reconcile against real (anonym
 scripts/dev.sh
 ```
 
-Installs every dependency (Python via `uv`, the SPA via `npm`), runs the database
-migrations, then starts the API (`:8000`) and the Vite dev server (`:5173`, which proxies
-`/api`). Ctrl-C stops both. Needs [`uv`](https://docs.astral.sh/uv/), Node.js, and a
+Installs every dependency (Python via `uv`, the SPA via `npm`), **creates the database if
+it doesn't exist yet**, runs the migrations, then starts the API (`:8000`) and the Vite dev
+server (`:5173`, which proxies `/api`). Ctrl-C stops both. Needs [`uv`](https://docs.astral.sh/uv/), Node.js, and a
 reachable Postgres — the script prints a Docker one-liner if `COFFER_DATABASE_URL` is
 unset, and auto-generates a dev `COFFER_ENCRYPTION_KEY` into a gitignored `.env`. LAN/VPN
 only (SPEC §5). Re-run with `--no-install` for a faster restart.
@@ -158,7 +159,7 @@ scripts/         dev.sh (install + run), backup.sh, restore-verify.sh
 migrations/      Alembic migrations
 docs/            OPERATIONS.md — deployment runbook
 spec.md          Source of truth for behavior
-PLAN.md          Execution order (slices S0–S15)
+PLAN.md          Execution order (slices S0–S16)
 PROGRESS.md      Live state — read first, update last
 CLAUDE.md        Operating rules
 pyproject.toml   uv deps, ruff, mypy, pytest, import-linter config
@@ -174,9 +175,11 @@ systemd units, backup/restore, spot check).
   server-side `telegram_user_id` allowlist).
 - Dashboard/API stay on LAN/VPN; the API serves the built SPA (`COFFER_WEB_DIST_DIR`).
 - Backups (`scripts/backup.sh`): DB (streamed `pg_dump`) + **encrypted** statement
-  originals into the existing TrueNAS SCALE + restic pipeline, with an encrypted-only
-  preflight audit — the backup never contains a plaintext PDF. Monthly restore drill
-  (`scripts/restore-verify.sh`) + reconciliation spot-check reminder.
+  originals into a restic repository, with an encrypted-only preflight audit — the backup
+  never contains a plaintext PDF. Monthly restore drill (`scripts/restore-verify.sh`) +
+  reconciliation spot-check reminder. The scripts are backend-agnostic; the current target
+  is **cloud** (Backblaze B2 / Cloudflare R2 / rclone — restic encrypts client-side, so the
+  provider only ever holds ciphertext). See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) §3a.
 
 ---
 

@@ -41,6 +41,21 @@ was one week stale. Nothing was silently assumed — every number below was re-r
   (the branch holds `f7aa514` + `4152748`); the branch is in sync with its remote. (b) The two
   commits' author dates are **out of order** vs. topology (HEAD `f7aa514` = Jul-22, its parent
   `4152748` = Jul-25) — cosmetic, from a cherry-pick/rebase; no action needed.
+- **`scripts/dev.sh` live-smoked on this cold container** (the first real end-to-end exercise of
+  the `f7aa514` auto-create step): one command → `uv sync` + `npm install` → dev
+  `COFFER_ENCRYPTION_KEY` generated into the gitignored `.env` → **`created database 'coffer'`**
+  (the auto-create path, genuinely hit — the DB did not exist) → migrations `→ 79a1b0e9dc7c` →
+  uvicorn `:8000` + Vite `:5173` both up. Verified live: `GET /api/dashboard/ringkasan/1` → **200**,
+  Vite root → **200**. Both processes stopped afterwards; `git status` clean (`.env` is gitignored).
+- **README audited + two stale claims fixed** (same stale-doc class as `4152748`): the status
+  banner said "all planned slices **S0–S15**" though **S16** (the §3.4 bill card) shipped
+  2026-07-18 — now S0–S16 with the 2026-07 parser re-validation noted (and the layout line's
+  "slices S0–S15"); the Deployment section still described backups going "into the existing
+  **TrueNAS SCALE** + restic pipeline" though Tommy changed direction on 2026-07-19 (**cloud**;
+  `OPERATIONS.md` §3a) — now backend-agnostic restic with the cloud target + client-side-encryption
+  note. Also documented dev.sh's create-the-DB-if-missing step. Verified *not* stale: `uv run mypy`
+  is genuinely equivalent to `mypy --strict` (pyproject sets `strict = true`, `files = [coffer, tests]`),
+  the parser table, and the CI description (the `gate` + `web` jobs both exist).
 - **Committed + pushed** to `claude/progress-check-nw3z3n` (docs only).
 - **Next — unchanged, and all of it needs Tommy, not code.** Every plan slice **S0–S16 is done**
   and re-verified; nothing is in progress. The open items are operational:
