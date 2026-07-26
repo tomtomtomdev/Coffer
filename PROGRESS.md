@@ -3,9 +3,64 @@
 > Persistent memory across cold sessions. Read this first. Update it last.
 > Format: what's done, what's in progress, what's next, and any live decisions/blockers.
 
-_Last updated: 2026-07-19_
+_Last updated: 2026-07-26_
 
-## Done (this session) ✅ — CIMB credential seed CLI (`coffer.api.seed_credential`) — build + test
+## Done (this session) ✅ — progress check: full gate re-verified from a cold container + two undocumented commits recorded
+Tommy: "Check progress." No slice was open, so this session **verified** the claimed state
+rather than widening scope, and closed a bookkeeping gap: the two commits that landed after
+the last PROGRESS entry (2026-07-19) were **never written up here**, so the persistent memory
+was one week stale. Nothing was silently assumed — every number below was re-run.
+
+- **Gate re-verified end-to-end on a fresh container** (Postgres started + `coffer` role and
+  `coffer_test` DB created locally; deps via `uv sync --frozen` + `npm ci`):
+  - `ruff check` **All checks passed** · `ruff format --check` **96 files already formatted** ·
+    `mypy --strict` **no issues in 96 source files** · `lint-imports` **Clean Architecture: KEPT**
+    (1 contract kept, 0 broken).
+  - **318 pytest passed** (4.2s) — exactly the count the last entry claimed.
+  - **alembic: no drift.** Full chain rebuilt from zero on a scratch DB
+    (`1764a988dedb → 741f49a1c0c3 → 79a1b0e9dc7c`) → `alembic check` = "No new upgrade
+    operations detected". Scratch DB dropped.
+  - **web:** `tsc --noEmit` clean · **43 vitest passed** (6 files) · `vite build` ✓ (the >500 kB
+    chunk warning is the pre-existing Recharts bundle, not a regression).
+  - `bash -n` clean on `scripts/dev.sh`, `backup.sh`, `restore-verify.sh`.
+  - **Verdict: the repo is exactly where PROGRESS/PLAN say it is.** No code change was needed
+    and none was made (only this file).
+- **Two previously-undocumented commits, now on the record** (both were already pushed to
+  `claude/progress-check-nw3z3n`; neither had a PROGRESS entry):
+  - **`f7aa514` `ops(dev.sh): auto-create the database when missing before migrating`** — on a
+    fresh box the target DB doesn't exist (native Postgres won't auto-create it the way the
+    Docker `POSTGRES_DB` one-liner does), so `alembic` died with `database "coffer" does not
+    exist`. `dev.sh` now runs an idempotent `ensure_database` step in-process via **psycopg**
+    (already a project dep — no `psql`/`createdb` client needed) against the maintenance
+    `postgres` database, refuses an empty/quote-bearing DB name, distinguishes **missing DB**
+    (create it) from **unreachable server** (exit 3 → the Docker hint), and tolerates a
+    concurrent create. Shell-only, no Python source touched → gate unaffected.
+  - **`4152748` `docs: mark S7 done in PLAN.md`** — S7 was still `⬜` in PLAN though it had been
+    complete on `main` for weeks (same class of stale-doc bug as the 2026-07-19 S1/S2 correction).
+- **⚠ Branch/ordering notes:** (a) **`main` is 2 commits behind** `claude/progress-check-nw3z3n`
+  (the branch holds `f7aa514` + `4152748`); the branch is in sync with its remote. (b) The two
+  commits' author dates are **out of order** vs. topology (HEAD `f7aa514` = Jul-22, its parent
+  `4152748` = Jul-25) — cosmetic, from a cherry-pick/rebase; no action needed.
+- **Committed + pushed** to `claude/progress-check-nw3z3n` (docs only).
+- **Next — unchanged, and all of it needs Tommy, not code.** Every plan slice **S0–S16 is done**
+  and re-verified; nothing is in progress. The open items are operational:
+  1. **Seed the CIMB credential on the box** — the tool is built and live-smoked:
+     `python -m coffer.api.seed_credential --household-id N --institution cimb` (scheme `static`;
+     runbook `docs/OPERATIONS.md` §7). Needs the box + the app's `COFFER_ENCRYPTION_KEY`; the
+     password is entered at runtime, never committed.
+  2. **Cloud backup** — pick a backend (**Backblaze B2** recommended) + create the bucket/keys,
+     then `restic init`. Runbook written (`OPERATIONS.md` §3a); the scripts need **no change**.
+     Then run `scripts/backup.sh` + `scripts/restore-verify.sh` once for real — they're still
+     unexercised against a live restic repo.
+  3. **Telegram `setWebhook`** with the real secret token behind the tunnel.
+  - Code-only follow-ups still open if wanted (no Tommy input needed): review-queue pagination,
+    amount-only generalization UI, machine-readable Bahasa anomaly reason, masked-account
+    auto-disambiguation, portfolio corp-action detection (needs a `holding` column), Stockbit
+    cash-SOA dividend rows → `transactions` (the deferred S1 tail), and committing the fresh
+    2026 months as anonymized regression fixtures. v2 backlog (SPEC §6): LLM categorizer,
+    budgets/goals, notifications, multi-currency.
+
+## Done (prev session) ✅ — CIMB credential seed CLI (`coffer.api.seed_credential`) — build + test
 Tommy: "cimb credential: build + test it." Built the operational tool that stores a household's
 `static` statement password Fernet-encrypted at rest, so **encrypted statements ingest unattended
 via Telegram** (web upload already prompts at runtime; this closes the S2/§8 operational remainder).
@@ -41,7 +96,7 @@ via Telegram** (web upload already prompts at runtime; this closes the S2/§8 op
   CIMB password (`070587`, static) + the household id, using the app's `COFFER_ENCRYPTION_KEY`.
 - **Committed to `main`**, not pushed.
 
-## Done (this session) ✅ — S1/S2 reality-check: parsers re-validated on fresh real statements + stale docs corrected
+## Done (prev session) ✅ — S1/S2 reality-check: parsers re-validated on fresh real statements + stale docs corrected
 Tommy provided real statements to "unblock the S1 parsers" and the CIMB password. Investigating
 first (per CLAUDE.md — surface contradictions before acting) revealed a **doc/reality mismatch**:
 S1 is *already complete*. Git history (`973a1f9`…`c63c11a`, all `S1:`) + the PROGRESS tail
@@ -89,7 +144,7 @@ newer months of the same accounts → a genuine **re-validation** pass.
   password entered at runtime, never committed). Could also commit the fresh months as **regression
   fixtures** (anonymized) if wanted.
 
-## Done (this session) ✅ — S14 follow-up: savings-rate per-point `%` labels (Arus Kas)
+## Done (prev session) ✅ — S14 follow-up: savings-rate per-point `%` labels (Arus Kas)
 Plan is complete (S0–S16); with no todo slice left and no new samples/password/infra input
 available, this session closed the one **design-completion** follow-up that needs no external
 input and touches no financial-correctness path — the frozen design (MEASUREMENTS §Cash Flow,
@@ -902,7 +957,7 @@ charts only), honoring CLAUDE.md ("business logic never in UI", "id-ID formattin
   optional `transactions`; no balance reconcile. Downstream (ingestion/persistence/api) will
   branch on statement-vs-portfolio family. Revisit if a single-type model is preferred.
 
-## Done (this session) ✅
+## Done (prev session) ✅ — S3
 - **S3 — validation gate** (`coffer/ingestion/validate.py`). Generalizes the per-parser
   reconcile into one pipeline gate returning a **routing decision** (not a raise):
   `OK` / `NEEDS_MANUAL_REVIEW` (near-empty extraction → OCR/manual, no alert) /

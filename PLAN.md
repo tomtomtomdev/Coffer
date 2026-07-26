@@ -261,7 +261,7 @@ budgets/goals, notifications, multi-currency.
 
 ---
 
-## Open items (status as of 2026-07-19)
+## Open items (status as of 2026-07-26 — re-verified; all slices S0–S16 done, gate green)
 - ✅ **CIMB password scheme** — RESOLVED: `static`, does not rotate (password held by Tommy;
   not committed). Operational remainder: seed the `institution_credential` row on the box.
 - ✅ **§3.4 bill-aggregator placement** — RESOLVED: shipped as the **Tagihan Jatuh Tempo card on
